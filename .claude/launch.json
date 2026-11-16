@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "karaoke-pro-web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "server/standalone.mjs",
+        "--port=47811"
+      ],
+      "port": 47811
+    }
+  ]
+}
