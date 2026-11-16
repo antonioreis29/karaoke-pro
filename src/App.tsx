@@ -7,7 +7,15 @@ import { LibraryPanel } from './components/LibraryPanel';
 import { PlayerPanel } from './components/PlayerPanel';
 import { QueuePanel } from './components/QueuePanel';
 import { applyVolume, openAudience, seekBy, stop, toggle } from './player/engine';
-import { fail, getState, loadAll, setSongs, setState, toast, updateSettings, useApp } from './store';
+import { restoreMics } from './player/mics';
+import { fail, getState, loadAll, onAccent, setSongs, setState, toast, updateSettings, useApp } from './store';
+
+/** Tela cheia do aplicativo: janela nativa no desktop, API do navegador no modo web. */
+function toggleAppFullscreen() {
+  if (window.kpDesktop) return void window.kpDesktop.toggleFullscreen();
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(() => undefined);
+}
 
 function useImportWatcher() {
   const status = useApp((s) => s.importStatus);
@@ -48,6 +56,11 @@ function useShortcuts() {
       if (e.ctrlKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         document.querySelector<HTMLInputElement>('#lib-search')?.focus();
+        return;
+      }
+      if (e.key === 'F11' && window.kpDesktop) {
+        e.preventDefault();
+        toggleAppFullscreen();
         return;
       }
       if (typing || e.ctrlKey || e.altKey || e.metaKey || getState().dialog || getState().confirm) return;
@@ -123,7 +136,9 @@ export function App() {
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
-    loadAll().catch((e) => setError(e.message));
+    loadAll()
+      .then(restoreMics)
+      .catch((e) => setError(e.message));
   }, []);
   useImportWatcher();
   useShortcuts();
@@ -134,7 +149,7 @@ export function App() {
 
   const imp = importStatus?.running ? importStatus : null;
   return (
-    <div className={`app ${settings.compact ? 'compact' : ''}`} style={{ ['--accent' as string]: settings.accent }}>
+    <div className={`app ${settings.compact ? 'compact' : ''}`} style={{ ['--accent' as string]: settings.accent, ['--on-accent' as string]: onAccent(settings.accent) }}>
       <header className="topbar">
         <Logo />
         <div className="topbar-status">
@@ -150,6 +165,9 @@ export function App() {
         <button className={`btn ${audienceOpen ? 'on' : ''}`} onClick={openAudience} title="Abrir a tela do público (P)">
           <Icon name="screen" /> Tela do público
           <i className={`dot ${audienceOpen ? 'live' : ''}`} />
+        </button>
+        <button className="btn icon" onClick={toggleAppFullscreen} title="Tela cheia do aplicativo (F11)">
+          <Icon name="expand" />
         </button>
         <button className="btn icon" onClick={() => setState({ dialog: { type: 'settings' } })} title="Configurações">
           <Icon name="gear" />

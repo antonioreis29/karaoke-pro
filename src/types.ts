@@ -48,14 +48,37 @@ export interface Settings {
   ytRecent: string[];
   leftWidth: number;
   rightWidth: number;
+  vinheta: boolean;
+  vinhetaSeconds: number;
+  vinhetaVolume: number;
+  themeVersion: number;
+  mics: MicSettings;
 }
+
+export interface MicChannel {
+  on: boolean;
+  gain: number;
+  muted: boolean;
+}
+
+/** Configuração do mixer de microfones (por dispositivo de entrada). */
+export interface MicSettings {
+  channels: Record<string, MicChannel>;
+  volume: number;
+  echo: number;
+  bass: number;
+  treble: number;
+}
+
+export const DEFAULT_MICS: MicSettings = { channels: {}, volume: 1, echo: 0.2, bass: 0, treble: 0 };
+export const DEFAULT_ACCENT = '#d9e88a';
 
 export const DEFAULT_SETTINGS: Settings = {
   masterVolume: 0.9,
   fairRotation: false,
   autoAdvance: false,
   autoDelay: 10,
-  accent: '#3b82f6',
+  accent: DEFAULT_ACCENT,
   compact: false,
   waitTitle: 'Karaoke Pro',
   waitMessage: 'Escolha sua música e fale com o DJ',
@@ -65,6 +88,11 @@ export const DEFAULT_SETTINGS: Settings = {
   ytRecent: [],
   leftWidth: 430,
   rightWidth: 350,
+  vinheta: true,
+  vinhetaSeconds: 8,
+  vinhetaVolume: 0.7,
+  themeVersion: 0,
+  mics: DEFAULT_MICS,
 };
 
 export interface ImportStatus {
@@ -83,7 +111,8 @@ export interface ImportStatus {
   version: number;
 }
 
-export type PlayMode = 'idle' | 'video' | 'audio' | 'cdg' | 'youtube';
+/** 'intro' é a vinheta exibida antes de cada apresentação. */
+export type PlayMode = 'idle' | 'intro' | 'video' | 'audio' | 'cdg' | 'youtube';
 export type PlayStatus = 'idle' | 'loading' | 'playing' | 'paused';
 
 export interface Playback {
@@ -110,6 +139,7 @@ export interface AudienceState {
   artist: string;
   singer: string;
   time: number;
+  duration: number;
   sentAt: number;
   rate: number;
   volume: number;
@@ -138,6 +168,6 @@ export const VIDEO_FORMATS = new Set(['mp4', 'm4v', 'webm', 'mkv', 'avi', 'mov']
 declare global {
   interface Window {
     __KP__?: { token: string; desktop: boolean };
-    kpDesktop?: { pickFolder(): Promise<string[]>; pickFiles(): Promise<string[]> };
+    kpDesktop?: { pickFolder(): Promise<string[]>; pickFiles(): Promise<string[]>; toggleFullscreen(): Promise<boolean>; setFullscreen(on: boolean): Promise<void> };
   }
 }

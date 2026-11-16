@@ -25,6 +25,7 @@ const paths: Record<string, ReactNode> = {
   check: <path d="m5 12.500 4.500 4.500L19 7.500" />,
   undo: <path d="M8 5 4 9l4 4M4 9h10a5 5 0 0 1 0 10h-3" />,
   globe: <><circle cx="12" cy="12" r="8.500" /><path d="M3.500 12h17M12 3.500c3 3 3 14 0 17M12 3.500c-3 3-3 14 0 17" /></>,
+  expand: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
   link: <path d="M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700l-1 1M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1" />,
 };
 
@@ -39,17 +40,10 @@ export function Icon({ name, size = 16 }: { name: keyof typeof paths | string; s
 export function Logo() {
   return (
     <div className="logo">
-      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
-        <defs>
-          <linearGradient id="kp-g" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#38bdf8" />
-            <stop offset="0.550" stopColor="#3b82f6" />
-            <stop offset="1" stopColor="#8b5cf6" />
-          </linearGradient>
-        </defs>
-        <rect width="32" height="32" rx="8" fill="url(#kp-g)" />
-        <rect x="12.500" y="6" width="7" height="12" rx="3.500" fill="#fff" />
-        <path d="M9 15.500a7 7 0 0 0 14 0M16 22.500V26" stroke="#fff" strokeWidth="2.200" strokeLinecap="round" fill="none" />
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="9" fill="var(--accent)" />
+        <rect x="12.5" y="6" width="7" height="12" rx="3.5" fill="var(--on-accent)" />
+        <path d="M9 15.5a7 7 0 0 0 14 0M16 22.5V26" stroke="var(--on-accent)" strokeWidth="2.4" strokeLinecap="round" fill="none" />
       </svg>
       <span>KARAOKE<b>PRO</b></span>
     </div>

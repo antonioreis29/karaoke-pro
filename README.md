@@ -38,7 +38,12 @@ Os dados (catálogo, fila, histórico e configurações) ficam em um banco SQLit
 4. **Iniciar**: *Iniciar próximo* (ou ▶ em um pedido, com confirmação). Ao terminar, a apresentação vai para o *Histórico*.
 5. **Online**: aba *Online* pesquisa karaokês no YouTube (exige chave gratuita da YouTube Data API v3, informada em Configurações) ou adiciona um vídeo colando o link, sem chave.
 
-Atalhos: `Espaço` play/pause · `S` parar · `N` próximo cantor · `←/→` 5 s · `↑/↓` volume · `P` tela do público · `Ctrl+F` busca.
+6. **Vinheta**: antes de cada cantor, a tela do público mostra o nome do cantor e a música com uma trilha de fundo gerada pelo próprio app. Duração, volume e liga/desliga ficam em Configurações; `Espaço` pula a vinheta.
+7. **Fila**: arraste um pedido para mudar a ordem. Arrastar com a *Rotação justa* ligada volta para a ordem manual.
+8. **Microfones**: aba *Microfones* abaixo do player. *Detectar microfones* lista as entradas do computador; cada uma tem liga/desliga, volume, medidor e mudo, além de volume geral, eco, graves e agudos. A voz sai pela mesma saída de som da música.
+9. **Tela cheia**: `F11` ou o botão no topo (aplicativo); `F`, `F11`, duplo clique ou o botão que aparece ao mover o mouse (tela do público); `Esc` sai.
+
+Atalhos: `Espaço` play/pause · `S` parar · `N` próximo cantor · `←/→` 5 s · `↑/↓` volume · `P` tela do público · `F11` tela cheia · `Ctrl+F` busca.
 
 ## Formatos
 

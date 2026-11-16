@@ -197,7 +197,7 @@ function ImportPathDialog() {
   );
 }
 
-const ACCENTS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#ec4899', '#22c55e'];
+const ACCENTS = ['#d9e88a', '#f4f0e1', '#ff8a5b', '#f472b6', '#7dd3fc', '#a78bfa'];
 
 function SettingsDialog() {
   const s = useApp((st) => st.settings);
@@ -217,8 +217,17 @@ function SettingsDialog() {
         <h3>Reprodução</h3>
         <label className="check"><input type="checkbox" checked={s.autoAdvance} onChange={(e) => updateSettings({ autoAdvance: e.target.checked })} /> Iniciar o próximo cantor automaticamente ao fim da música</label>
         <label className="inline">
-          Contagem antes do próximo cantor
+          Contagem antes do próximo cantor (sem vinheta)
           <input type="number" min={3} max={120} value={s.autoDelay} onChange={(e) => updateSettings({ autoDelay: Math.min(120, Math.max(3, +e.target.value || 10)) })} /> segundos
+        </label>
+        <label className="check"><input type="checkbox" checked={s.vinheta} onChange={(e) => updateSettings({ vinheta: e.target.checked })} /> Vinheta antes de cada cantor (nome do cantor, música e trilha de fundo)</label>
+        <label className="inline">
+          Duração da vinheta
+          <input type="number" min={3} max={30} value={s.vinhetaSeconds} disabled={!s.vinheta} onChange={(e) => updateSettings({ vinhetaSeconds: Math.min(30, Math.max(3, +e.target.value || 8)) })} /> segundos
+        </label>
+        <label className="inline">
+          Volume da trilha
+          <input type="range" min={0} max={1} step={0.05} value={s.vinhetaVolume} disabled={!s.vinheta} onChange={(e) => updateSettings({ vinhetaVolume: +e.target.value })} /> {Math.round(s.vinhetaVolume * 100)}%
         </label>
         <label className="check"><input type="checkbox" checked={s.fairRotation} onChange={(e) => updateSettings({ fairRotation: e.target.checked })} /> Rotação justa da fila</label>
 
@@ -240,7 +249,7 @@ function SettingsDialog() {
         <div className="keys">
           <span><kbd>Espaço</kbd> Play / Pause</span><span><kbd>S</kbd> Parar</span><span><kbd>N</kbd> Próximo cantor</span>
           <span><kbd>←</kbd><kbd>→</kbd> Voltar / avançar 5 s</span><span><kbd>↑</kbd><kbd>↓</kbd> Volume geral</span>
-          <span><kbd>P</kbd> Tela do público</span><span><kbd>Ctrl</kbd><kbd>F</kbd> Buscar</span>
+          <span><kbd>P</kbd> Tela do público</span><span><kbd>F11</kbd> Tela cheia</span><span><kbd>Ctrl</kbd><kbd>F</kbd> Buscar</span>
         </div>
         <footer><button className="btn primary" onClick={close}>Concluir</button></footer>
       </div>

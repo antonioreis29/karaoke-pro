@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { requestNext } from '../actions';
 import { api } from '../api';
-import { applyVolume, cancelCountdown, seek, seekBy, setRate, stop, surfaces, toggle } from '../player/engine';
+import { applyVolume, cancelCountdown, seek, seekBy, setRate, skipIntro, stop, surfaces, toggle } from '../player/engine';
+import { useMics } from '../player/mics';
+import { MicMixer } from './MicMixer';
 import { fail, fmtTime, orderedWaiting, updateSettings, upsertSong, useApp } from '../store';
 import { fmtLabel } from './LibraryPanel';
 import { Icon } from './icons';
@@ -51,6 +53,8 @@ export function PlayerPanel() {
   const settings = useApp((s) => s.settings);
   const requests = useApp((s) => s.requests);
   const stage = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<'music' | 'mics'>('music');
+  const micsLive = useMics().active.length;
 
   useEffect(() => {
     const el = stage.current!;
@@ -64,10 +68,16 @@ export function PlayerPanel() {
 
   const song = pb.songId != null ? songMap.get(pb.songId) : undefined;
   const idle = pb.mode === 'idle';
+  const intro = pb.mode === 'intro';
+  const canSeek = !idle && !intro;
   const next = orderedWaiting(requests, settings.fairRotation)[0]?.req;
   const nextSong = next ? songMap.get(next.song_id) : undefined;
   const ytRemote = pb.mode === 'youtube' && pb.ytHost === 'audience';
-  const rateOk = !idle && pb.mode !== 'youtube';
+  const rateOk = canSeek && pb.mode !== 'youtube';
+  const stageFullscreen = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else stage.current?.requestFullscreen().catch(() => undefined);
+  };
 
   const setSongVolume = (v: number) => {
     if (!song) return;
@@ -77,11 +87,11 @@ export function PlayerPanel() {
     volTimer = window.setTimeout(() => api.patchSong(song.id, { volume: v }).catch(fail), 400);
   };
 
-  const statusLabel = idle ? 'Parado' : pb.status === 'loading' ? 'Carregando' : pb.status === 'paused' ? 'Pausado' : 'No ar';
+  const statusLabel = idle ? 'Parado' : intro ? 'Vinheta' : pb.status === 'loading' ? 'Carregando' : pb.status === 'paused' ? 'Pausado' : 'No ar';
 
   return (
     <section className="panel center">
-      <div ref={stage} className={`stage mode-${pb.mode} ${ytRemote ? 'yt-remote' : ''}`}>
+      <div ref={stage} className={`stage mode-${pb.mode} ${ytRemote ? 'yt-remote' : ''}`} onDoubleClick={stageFullscreen}>
         {idle && (
           <div className="stage-overlay">
             {pb.countdown != null && next ? (
@@ -99,6 +109,14 @@ export function PlayerPanel() {
             )}
           </div>
         )}
+        {intro && (
+          <div className="stage-overlay vinheta">
+            <span className="eyebrow">A seguir</span>
+            <strong>{pb.singer}</strong>
+            <span>{song?.title}{song?.artist ? ` — ${song.artist}` : ''}</span>
+            <button className="btn sm" onClick={skipIntro}>Pular vinheta</button>
+          </div>
+        )}
         {pb.mode === 'audio' && (
           <div className="stage-overlay">
             <div className={`eq ${pb.status === 'playing' ? '' : 'still'}`}><i /><i /><i /><i /><i /></div>
@@ -112,7 +130,8 @@ export function PlayerPanel() {
             <span>O vídeo do YouTube toca em um único player oficial.</span>
           </div>
         )}
-        <span className={`live-tag s-${idle ? 'idle' : pb.status}`}>{statusLabel}</span>
+        <span className={`live-tag s-${idle ? 'idle' : intro ? 'loading' : pb.status}`}>{statusLabel}</span>
+        <button className="stage-fs" onClick={stageFullscreen} title="Prévia em tela cheia (duplo clique)"><Icon name="expand" size={15} /></button>
       </div>
 
       <div className="now">
@@ -124,18 +143,25 @@ export function PlayerPanel() {
         {pb.singer && <span className="singer-chip"><Icon name="mic" size={14} /> {pb.singer}</span>}
       </div>
 
-      <Progress time={pb.time} duration={pb.duration} disabled={idle} />
+      <Progress time={pb.time} duration={pb.duration} disabled={!canSeek} />
 
       <div className="transport">
-        <button className="tbtn" onClick={() => seekBy(-10)} disabled={idle} title="Voltar 10 s (← volta 5 s)"><Icon name="back" size={18} /><small>10</small></button>
+        <button className="tbtn" onClick={() => seekBy(-10)} disabled={!canSeek} title="Voltar 10 s (← volta 5 s)"><Icon name="back" size={18} /><small>10</small></button>
         <button className="tbtn" onClick={() => stop().catch(fail)} disabled={idle} title="Parar e concluir a apresentação (S)"><Icon name="stop" size={18} /></button>
-        <button className="tbtn main" onClick={toggle} disabled={idle} title="Play / Pause (Espaço)">
-          <Icon name={pb.status === 'playing' || pb.status === 'loading' ? 'pause' : 'play'} size={24} />
+        <button className="tbtn main" onClick={toggle} disabled={idle} title={intro ? 'Pular a vinheta (Espaço)' : 'Play / Pause (Espaço)'}>
+          <Icon name={intro ? 'next' : pb.status === 'playing' || pb.status === 'loading' ? 'pause' : 'play'} size={24} />
         </button>
-        <button className="tbtn" onClick={() => seekBy(10)} disabled={idle} title="Avançar 10 s (→ avança 5 s)"><small>10</small><Icon name="fwd" size={18} /></button>
+        <button className="tbtn" onClick={() => seekBy(10)} disabled={!canSeek} title="Avançar 10 s (→ avança 5 s)"><small>10</small><Icon name="fwd" size={18} /></button>
         <button className="tbtn wide" onClick={requestNext} disabled={!next && idle} title="Próximo cantor (N)"><Icon name="next" size={18} /> Próxima</button>
       </div>
 
+      <div className="mixer-tabs">
+        <button className={tab === 'music' ? 'on' : ''} onClick={() => setTab('music')}><Icon name="vol" size={14} /> Música</button>
+        <button className={tab === 'mics' ? 'on' : ''} onClick={() => setTab('mics')}>
+          <Icon name="mic" size={14} /> Microfones {micsLive > 0 && <i className="dot live" />}
+        </button>
+      </div>
+      {tab === 'mics' ? <MicMixer /> : (
       <div className="mixer">
         <label>
           <span><Icon name="vol" size={14} /> Volume geral</span>
@@ -159,6 +185,7 @@ export function PlayerPanel() {
           <span className="hint">Espaço · ←/→ · ↑/↓ · S · N · P</span>
         </div>
       </div>
+      )}
     </section>
   );
 }

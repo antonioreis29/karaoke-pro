@@ -1,7 +1,7 @@
 // Estado global da tela do operador (store mínimo sobre useSyncExternalStore).
 import { useSyncExternalStore } from 'react';
 import { api } from './api';
-import { DEFAULT_SETTINGS, type ImportStatus, type Playback, type Settings, type SingerRequest, type Song } from './types';
+import { DEFAULT_ACCENT, DEFAULT_MICS, DEFAULT_SETTINGS, type ImportStatus, type Playback, type Settings, type SingerRequest, type Song } from './types';
 
 export interface Toast {
   id: number;
@@ -129,7 +129,10 @@ export function updateSettings(patch: Partial<Settings>) {
 export async function loadAll() {
   const b = await api.bootstrap();
   setSongs(b.songs);
-  setState({ ready: true, requests: b.requests, settings: { ...DEFAULT_SETTINGS, ...b.settings }, importStatus: b.importStatus });
+  const settings = { ...DEFAULT_SETTINGS, ...b.settings, mics: { ...DEFAULT_MICS, ...(b.settings.mics ?? {}) } };
+  setState({ ready: true, requests: b.requests, settings, importStatus: b.importStatus });
+  // identidade visual nova: troca uma única vez a cor antiga padrão pela atual
+  if (settings.themeVersion < 2) updateSettings({ accent: DEFAULT_ACCENT, themeVersion: 2 });
 }
 
 // ---- regras da fila
@@ -167,4 +170,12 @@ export function fmtTime(sec: number | null | undefined): string {
   const m = Math.floor((s % 3600) / 60);
   const ss = String(s % 60).padStart(2, '0');
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+}
+
+/** Cor de texto legível sobre a cor de destaque escolhida. */
+export function onAccent(hex: string): string {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return '#111111';
+  const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? '#111111' : '#ffffff';
 }

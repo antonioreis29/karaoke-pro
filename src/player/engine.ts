@@ -4,6 +4,7 @@ import { api, cdgUrl, mediaUrl } from '../api';
 import { fail, getState, IDLE_PLAYBACK, orderedWaiting, setPlayback, setState, subscribe, toast, upsertSong } from '../store';
 import { VIDEO_FORMATS, type AudienceState, type PlayMode, type Song, type SyncMessage } from '../types';
 import { CdgPlayer, loadCdg } from './cdg';
+import { jingle } from './jingle';
 import { YT_ENDED, YT_PAUSED, YT_PLAYING, YtPlayer, ytErrorText } from './youtube';
 
 const video = document.createElement('video');
@@ -21,6 +22,7 @@ let ytp: YtPlayer | null = null;
 let ytPoll: number | undefined;
 let raf = 0;
 let countdownTimer: number | undefined;
+let introTimer: number | undefined;
 let loadToken = 0;
 let lastAlive = 0;
 
@@ -42,10 +44,13 @@ export function applyVolume() {
   const v = Math.min(1, Math.max(0, getState().settings.masterVolume * (currentSong()?.volume ?? 1)));
   video.volume = v;
   ytp?.setVolume(v);
+  jingle.setVolume(getState().settings.masterVolume * getState().settings.vinhetaVolume);
 }
 
 function teardown() {
   loadToken++;
+  clearInterval(introTimer);
+  jingle.stop();
   cancelAnimationFrame(raf);
   clearInterval(ytPoll);
   ytp?.destroy();
@@ -88,6 +93,7 @@ async function handleError(message: string) {
 async function finishCurrent(as: 'done' | 'waiting' | 'skipped') {
   const { reqId, mode } = getState().playback;
   if (mode === 'idle') return;
+  if (mode === 'intro' && as === 'done') as = 'waiting'; // interrompido na vinheta: ainda não cantou
   teardown();
   setPlayback(IDLE_PLAYBACK);
   if (reqId != null) setState({ requests: await api.patchRequest(reqId, { status: as }) });
@@ -102,6 +108,7 @@ async function onEnded() {
   const s = getState();
   const next = orderedWaiting(s.requests, s.settings.fairRotation)[0];
   if (!s.settings.autoAdvance || !next) return;
+  if (s.settings.vinheta) return void playNext().catch(fail); // a vinheta já faz a transição
   let left = Math.max(1, Math.round(s.settings.autoDelay));
   setPlayback({ countdown: left });
   countdownTimer = window.setInterval(() => {
@@ -235,7 +242,8 @@ function buildAudienceState(): AudienceState {
     title: song?.title ?? '',
     artist: song?.artist ?? '',
     singer: pb.singer,
-    time: pb.mode === 'youtube' ? pb.time : video.currentTime || pb.time,
+    time: pb.mode === 'youtube' || pb.mode === 'intro' ? pb.time : video.currentTime || pb.time,
+    duration: pb.duration,
     sentAt: Date.now(),
     rate: pb.rate,
     volume: Math.min(1, s.settings.masterVolume * (song?.volume ?? 1)),
@@ -269,6 +277,30 @@ subscribe(() => {
 setInterval(publish, 500);
 
 // ---------------------------------------------------------------- comandos
+
+/** Vinheta: apresenta o cantor e a música com a trilha de fundo e, ao final, inicia a reprodução. */
+function startIntro(song: Song, reqId: number, singer: string) {
+  cancelCountdown();
+  teardown();
+  const s = getState().settings;
+  const total = Math.min(30, Math.max(3, s.vinhetaSeconds));
+  setPlayback({ ...IDLE_PLAYBACK, mode: 'intro', status: 'playing', reqId, songId: song.id, singer, duration: total });
+  jingle.start(s.masterVolume * s.vinhetaVolume);
+  const started = performance.now();
+  introTimer = window.setInterval(() => {
+    const elapsed = (performance.now() - started) / 1000;
+    if (elapsed < total) return setPlayback({ time: elapsed });
+    load(song, reqId, singer).catch(fail);
+  }, 200);
+}
+
+/** Pula a vinheta e começa a música imediatamente. */
+export function skipIntro() {
+  const pb = getState().playback;
+  const song = currentSong();
+  if (pb.mode !== 'intro' || !song) return;
+  load(song, pb.reqId, pb.singer).catch(fail);
+}
 
 async function load(song: Song, reqId: number | null, singer: string) {
   cancelCountdown();
@@ -309,7 +341,8 @@ export async function playRequest(reqId: number) {
   if (!req || !song) return toast('Solicitação não encontrada', 'error');
   await finishCurrent('done');
   setState({ requests: await api.patchRequest(reqId, { status: 'singing' }) });
-  await load(song, reqId, req.singer);
+  if (getState().settings.vinheta) startIntro(song, reqId, req.singer);
+  else await load(song, reqId, req.singer);
 }
 
 /** Toca uma música sem cantor associado (teste do arquivo pelo operador). */
@@ -340,6 +373,7 @@ export { cancelCountdown };
 export function toggle() {
   const pb = getState().playback;
   if (pb.mode === 'idle') return;
+  if (pb.mode === 'intro') return skipIntro();
   if (pb.mode === 'youtube') {
     if (pb.ytHost === 'audience') setPlayback({ status: pb.status === 'paused' ? 'playing' : 'paused' });
     else if (ytp?.state() === YT_PLAYING) ytp.pause();
@@ -352,7 +386,7 @@ export function toggle() {
 
 export function seek(time: number) {
   const pb = getState().playback;
-  if (pb.mode === 'idle') return;
+  if (pb.mode === 'idle' || pb.mode === 'intro') return;
   const t = Math.max(0, Math.min(time, (pb.duration || time) - 0.25));
   if (pb.mode === 'youtube') {
     if (pb.ytHost === 'audience') post({ type: 'seek', time: t });
@@ -366,7 +400,7 @@ export const seekBy = (delta: number) => seek(getState().playback.time + delta);
 /** Velocidade com preservação do tom (mídia local). */
 export function setRate(rate: number) {
   const pb = getState().playback;
-  if (pb.mode === 'idle' || pb.mode === 'youtube') return;
+  if (pb.mode === 'idle' || pb.mode === 'intro' || pb.mode === 'youtube') return;
   video.preservesPitch = true;
   video.playbackRate = rate;
   setPlayback({ rate });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { requestNext, requestStart } from '../actions';
 import { api } from '../api';
 import { stop } from '../player/engine';
@@ -13,8 +13,8 @@ export function QueuePanel() {
   const fair = useApp((s) => s.settings.fairRotation);
   const playing = useApp((s) => s.playback.mode !== 'idle');
   const [tab, setTab] = useState<'queue' | 'history'>('queue');
-  const [dragId, setDragId] = useState<number | null>(null);
-  const [overId, setOverId] = useState<number | null>(null);
+  const [drag, setDrag] = useState<{ id: number; dy: number; index: number } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const waiting = useMemo(() => orderedWaiting(requests, fair), [requests, fair]);
   const current = requests.find((r) => r.status === 'singing');
@@ -25,19 +25,62 @@ export function QueuePanel() {
   const currentSong = current ? songMap.get(current.song_id) : undefined;
   const set = (p: Promise<typeof requests>) => p.then((r) => setState({ requests: r })).catch(fail);
 
-  const drop = (targetId: number) => {
-    if (dragId == null || dragId === targetId) return;
-    const ids = waiting.map((w) => w.req.id).filter((id) => id !== dragId);
-    ids.splice(ids.indexOf(targetId), 0, dragId);
+  /** Aplica a nova ordem. Com a rotação justa ligada, a ordem manual passa a valer e a rotação é desligada. */
+  const applyOrder = (ids: number[]) => {
+    if (fair) {
+      updateSettings({ fairRotation: false });
+      toast('Rotação justa desligada para manter a ordem que você definiu');
+    }
+    // atualização imediata na tela; o servidor confirma em seguida
+    const pos = new Map(ids.map((id, i) => [id, i + 1]));
+    setState({ requests: requests.map((r) => (pos.has(r.id) ? { ...r, position: pos.get(r.id)! } : r)) });
     set(api.reorder(ids));
   };
-  const move = (id: number, delta: number) => {
-    const ids = waiting.map((w) => w.req.id);
-    const i = ids.indexOf(id);
-    const j = i + delta;
-    if (j < 0 || j >= ids.length) return;
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    set(api.reorder(ids));
+
+  /** Arrastar com o mouse (ou toque) em qualquer ponto da linha. */
+  const onRowDown = (e: React.PointerEvent, id: number) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+    const startY = e.clientY;
+    const list = listRef.current!;
+    const order = waiting.map((w) => w.req.id);
+    const from = order.indexOf(id);
+    let active = false;
+    let index = from;
+    const indexAt = (y: number) => {
+      const rows = [...list.querySelectorAll<HTMLElement>('[data-req]')];
+      let i = 0;
+      for (const row of rows) {
+        if (Number(row.dataset.req) === id) continue;
+        const r = row.getBoundingClientRect();
+        if (y > r.top + r.height / 2) i++;
+      }
+      return i;
+    };
+    const move = (ev: PointerEvent) => {
+      const dy = ev.clientY - startY;
+      if (!active && Math.abs(dy) < 6) return;
+      active = true;
+      index = indexAt(ev.clientY);
+      const box = list.getBoundingClientRect();
+      if (ev.clientY < box.top + 30) list.scrollTop -= 12;
+      if (ev.clientY > box.bottom - 30) list.scrollTop += 12;
+      setDrag({ id, dy, index });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      document.body.classList.remove('dragging');
+      setDrag(null);
+      if (!active || index === from) return;
+      const ids = order.filter((x) => x !== id);
+      ids.splice(index, 0, id);
+      applyOrder(ids);
+    };
+    document.body.classList.add('dragging');
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   const remove = async (id: number, singer: string) => {
     if (await confirmDialog({ title: 'Remover da fila?', message: `O pedido de ${singer} será removido.`, confirmLabel: 'Remover', danger: true })) {
@@ -48,6 +91,16 @@ export function QueuePanel() {
     if (await confirmDialog({ title: 'Limpar o histórico?', message: 'Todas as apresentações concluídas deste evento serão apagadas. A rotação justa também recomeça.', confirmLabel: 'Limpar histórico', danger: true })) {
       set(api.clearHistory());
     }
+  };
+
+  // onde a linha arrastada vai cair: marca a linha que ficará logo abaixo (ou a última, se for para o fim)
+  const others = drag ? waiting.filter((w) => w.req.id !== drag.id) : [];
+  const gapBefore = (id: number, _i: number) => {
+    if (!drag || id === drag.id) return '';
+    const k = others.findIndex((w) => w.req.id === id);
+    if (k === drag.index) return 'drop-before';
+    if (drag.index >= others.length && k === others.length - 1) return 'drop-after';
+    return '';
   };
 
   return (
@@ -83,10 +136,10 @@ export function QueuePanel() {
           </div>
           <label className="check rotation" title="Prioriza quem ainda não cantou na rodada. Você ainda pode iniciar qualquer pedido manualmente.">
             <input type="checkbox" checked={fair} onChange={(e) => updateSettings({ fairRotation: e.target.checked })} /> Rotação justa
-            {fair && <span className="hint">ordem calculada por rodada</span>}
+            {fair && <span className="hint">arrastar um pedido volta para a ordem manual</span>}
           </label>
 
-          <div className="vlist">
+          <div className="vlist" ref={listRef}>
             {waiting.length === 0 && (
               <div className="empty">
                 <strong>Fila vazia</strong>
@@ -98,14 +151,12 @@ export function QueuePanel() {
               return (
                 <div
                   key={req.id}
-                  className={`row q ${dragId === req.id ? 'dragging' : ''} ${overId === req.id && dragId !== req.id ? 'over' : ''} ${i === 0 ? 'next' : ''}`}
-                  draggable={!fair}
-                  onDragStart={(e) => { setDragId(req.id); e.dataTransfer.effectAllowed = 'move'; }}
-                  onDragOver={(e) => { if (dragId != null) { e.preventDefault(); setOverId(req.id); } }}
-                  onDrop={(e) => { e.preventDefault(); drop(req.id); }}
-                  onDragEnd={() => { setDragId(null); setOverId(null); }}
+                  data-req={req.id}
+                  className={`row q ${drag?.id === req.id ? 'dragging' : ''} ${i === 0 ? 'next' : ''} ${gapBefore(req.id, i)}`}
+                  style={drag?.id === req.id ? { transform: `translateY(${drag.dy}px)` } : undefined}
+                  onPointerDown={(e) => onRowDown(e, req.id)}
                 >
-                  <span className={`grip ${fair ? 'off' : ''}`} title={fair ? 'Desative a rotação justa para reordenar manualmente' : 'Arraste para reordenar'}><Icon name="grip" size={14} /></span>
+                  <span className="grip" title="Arraste para reordenar"><Icon name="grip" size={14} /></span>
                   <span className="pos">{i + 1}</span>
                   <div className="song-main">
                     <div className="t">{req.singer}{fair && <span className="badge round">R{round}</span>}</div>
@@ -114,12 +165,6 @@ export function QueuePanel() {
                       {song?.missing ? <span className="badge danger">ausente</span> : null}
                     </div>
                   </div>
-                  {!fair && (
-                    <span className="updown">
-                      <button className="ghost" onClick={() => move(req.id, -1)} disabled={i === 0} title="Subir">▲</button>
-                      <button className="ghost" onClick={() => move(req.id, 1)} disabled={i === waiting.length - 1} title="Descer">▼</button>
-                    </span>
-                  )}
                   <button className="ghost" onClick={() => setState({ dialog: { type: 'request', reqId: req.id } })} title="Editar pedido"><Icon name="edit" size={15} /></button>
                   <button className="ghost" onClick={() => remove(req.id, req.singer)} title="Remover da fila"><Icon name="x" size={15} /></button>
                   <button className="add" onClick={() => requestStart(req.id)} title="Iniciar este cantor (pede confirmação)"><Icon name="play" size={14} /></button>

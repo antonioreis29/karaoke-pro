@@ -4,12 +4,23 @@ import { useEffect, useRef, useState } from 'react';
 import { CdgPlayer, loadCdg } from '../player/cdg';
 import { YT_PLAYING, YtPlayer } from '../player/youtube';
 import type { AudienceState, SyncMessage } from '../types';
+import { Icon } from '../components/icons';
+
+/** Cor de texto legível sobre a cor de destaque. */
+function onAccent(hex: string): string {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return '#111111';
+  const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? '#111111' : '#ffffff';
+}
 
 const expectedTime = (s: AudienceState) => s.time + (s.status === 'playing' ? ((Date.now() - s.sentAt) / 1000) * s.rate : 0);
 
 export function AudienceView() {
   const [s, setS] = useState<AudienceState | null>(null);
   const [needClick, setNeedClick] = useState(false);
+  const [ui, setUi] = useState(false); // controles aparecem só enquanto o mouse se move
+  const uiTimer = useRef<number | undefined>(undefined);
   const latest = useRef<AudienceState | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -132,36 +143,62 @@ export function AudienceView() {
   }, []);
 
   const toggleFullscreen = () => {
+    if (window.kpDesktop) return void window.kpDesktop.toggleFullscreen(); // janela nativa em tela cheia
     if (document.fullscreenElement) document.exitFullscreen();
     else document.documentElement.requestFullscreen().catch(() => undefined);
   };
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+      else if (e.key === 'F11' && window.kpDesktop) {
+        e.preventDefault();
+        toggleFullscreen();
+      } else if (e.key === 'Escape') window.kpDesktop?.setFullscreen(false); // no navegador o Esc já sai sozinho
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const wake = () => {
+    setUi(true);
+    clearTimeout(uiTimer.current);
+    uiTimer.current = window.setTimeout(() => setUi(false), 2500);
+  };
+
   const mode = s?.mode ?? 'idle';
   const yt = mode === 'youtube' && !!s?.ytHere;
+  const intro = mode === 'intro';
   const idle = mode === 'idle' || (mode === 'youtube' && !s?.ytHere);
-  const intro = !!s && !idle && !yt && s.singer && s.time < 8;
+  const playing = !idle && !intro;
+  const accent = s?.accent ?? '#d9e88a';
+  const introPct = s && intro && s.duration > 0 ? Math.min(100, (expectedTime(s) / s.duration) * 100) : 0;
 
   return (
-    <div className="aud" style={{ ['--accent' as string]: s?.accent ?? '#3b82f6' }} onDoubleClick={toggleFullscreen}>
-      <div className={`aud-stage ${yt ? 'with-bar' : ''}`}>
+    <div
+      className={`aud ${ui ? 'show-ui' : ''}`}
+      style={{ ['--accent' as string]: accent, ['--on-accent' as string]: onAccent(accent) }}
+      onDoubleClick={toggleFullscreen}
+      onMouseMove={wake}
+    >
+      <div className="aud-stage">
         <video ref={videoRef} className="aud-media" style={{ display: mode === 'video' ? 'block' : 'none' }} playsInline muted />
         <canvas ref={canvasRef} className="aud-media aud-cdg" style={{ display: mode === 'cdg' ? 'block' : 'none' }} />
         <div ref={ytRef} className="aud-media yt-host" style={{ display: yt ? 'block' : 'none' }} />
 
         {mode === 'audio' && s && (
           <div className="aud-card">
-            <div className="eq big"><i /><i /><i /><i /><i /></div>
+            <div className="eq big"><i /><i /><i /><i /><i /><i /><i /></div>
             {s.singer && <div className="aud-singer">{s.singer}</div>}
-            <div className="aud-song">{s.title}</div>
-            {s.artist && <div className="aud-artist">{s.artist}</div>}
           </div>
         )}
 
         {idle && (
           <div className="aud-wait">
-            <div className="aud-glow" />
+            <div className="burst b1" />
+            <div className="burst b2" />
+            <div className="aud-wait-label">Prepare-se para o show</div>
             <div className="aud-wait-title">{s?.waitTitle || 'Karaoke Pro'}</div>
-            <div className="aud-wait-msg">{s ? s.waitMessage : 'Aguardando a tela do operador…'}</div>
             {s && s.showNext && s.nextSinger && (
               <div className="aud-next">
                 <span>{s.countdown != null ? `Começa em ${s.countdown}s` : 'A seguir'}</span>
@@ -169,27 +206,37 @@ export function AudienceView() {
                 {s.nextTitle && <em>{s.nextTitle}</em>}
               </div>
             )}
+            <div className="aud-wait-msg">{s ? s.waitMessage : 'Aguardando a tela do operador…'}</div>
           </div>
         )}
 
         {intro && s && (
-          <div className="aud-intro">
-            <span>Cantando agora</span>
-            <strong>{s.singer}</strong>
-            <em>{s.title}{s.artist ? ` — ${s.artist}` : ''}</em>
+          <div className="aud-vinheta" key={`${s.songId}-${s.singer}`}>
+            <div className="burst b1" />
+            <div className="burst b2" />
+            <span className="vin-label">Agora no palco</span>
+            <strong className="vin-singer">{s.singer}</strong>
+            <div className="vin-song">
+              <b>{s.title}</b>
+              {s.artist && <em>{s.artist}</em>}
+            </div>
+            <div className="eq big dots"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
+            <div className="vin-progress"><i style={{ width: `${introPct}%` }} /></div>
           </div>
         )}
       </div>
 
-      {/* No YouTube nada é sobreposto ao player: as informações ficam em uma faixa separada. */}
-      {yt && s && (
+      {/* Só o nome da música, em uma faixa própria: nada é sobreposto ao vídeo. */}
+      {playing && s && (
         <div className="aud-bar">
-          {s.singer && <strong>{s.singer}</strong>}
-          <span>{s.title}{s.artist ? ` — ${s.artist}` : ''}</span>
-          {needClick && <b>Clique no vídeo para iniciar</b>}
-          {s.showNext && s.nextSinger && <em>A seguir: {s.nextSinger}</em>}
+          <span>{s.title}</span>
+          {yt && needClick && <b>Clique no vídeo para iniciar</b>}
         </div>
       )}
+
+      <button className="aud-fs" onClick={toggleFullscreen} title="Tela cheia (F ou duplo clique)">
+        <Icon name="expand" size={18} /> Tela cheia
+      </button>
     </div>
   );
 }
