@@ -319,7 +319,8 @@ export async function startServer(opts) {
 
   return {
     port,
-    url: `http://127.0.0.1:${port}/`,
+    // "localhost" (e não o IP): o YouTube recusa a incorporação de vídeos de música em origens por IP (erro 150)
+    url: `http://localhost:${port}/`,
     close: () => {
       server.close();
       server.closeAllConnections?.();
