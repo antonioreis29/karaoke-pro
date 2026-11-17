@@ -223,8 +223,9 @@ function SettingsDialog() {
         <label className="check"><input type="checkbox" checked={s.vinheta} onChange={(e) => updateSettings({ vinheta: e.target.checked })} /> Vinheta antes de cada cantor (nome do cantor, música e trilha de fundo)</label>
         <label className="inline">
           Duração da vinheta
-          <input type="number" min={3} max={30} value={s.vinhetaSeconds} disabled={!s.vinheta} onChange={(e) => updateSettings({ vinhetaSeconds: Math.min(30, Math.max(3, +e.target.value || 8)) })} /> segundos
+          <input type="number" min={3} max={30} value={s.vinhetaSeconds} disabled={!s.vinheta} onChange={(e) => updateSettings({ vinhetaSeconds: Math.min(30, Math.max(3, +e.target.value || 12)) })} /> segundos
         </label>
+        <p className="hint">Durante a vinheta a música é carregada; se ela demorar mais que a vinheta, a vinheta continua até a música estar pronta.</p>
         <label className="inline">
           Volume da trilha
           <input type="range" min={0} max={1} step={0.05} value={s.vinhetaVolume} disabled={!s.vinheta} onChange={(e) => updateSettings({ vinhetaVolume: +e.target.value })} /> {Math.round(s.vinhetaVolume * 100)}%

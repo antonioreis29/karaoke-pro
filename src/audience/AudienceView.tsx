@@ -2,7 +2,7 @@
 // e mantém vídeo/letras alinhados ao relógio do operador.
 import { useEffect, useRef, useState } from 'react';
 import { CdgPlayer, loadCdg } from '../player/cdg';
-import { YT_PLAYING, YtPlayer } from '../player/youtube';
+import { warmYouTube, YT_PLAYING, YtPlayer } from '../player/youtube';
 import type { AudienceState, SyncMessage } from '../types';
 import { Icon } from '../components/icons';
 
@@ -34,7 +34,8 @@ export function AudienceView() {
     let cdgFor: string | null = null;
     let ytp: YtPlayer | null = null;
     let ytFor: string | null = null;
-    let ytStartedAt = 0;
+    let warmedFor: string | null = null; // vídeo cuja vinheta já adiantou o código do player
+    let playAskedAt = 0; // quando o player foi criado para tocar
 
     const dropYt = () => {
       ytp?.destroy();
@@ -50,7 +51,15 @@ export function AudienceView() {
       if (!st || !video) return;
 
       // vídeo local: cópia muda, alinhada ao áudio do operador
-      if (st.mode === 'video' && st.mediaUrl) {
+      if (st.mediaUrl && st.preparing) {
+        if (video.getAttribute('src') !== st.mediaUrl) {
+          video.preload = 'auto';
+          video.src = st.mediaUrl;
+          video.muted = true;
+          video.load();
+        }
+        if (!video.paused) video.pause();
+      } else if (st.mode === 'video' && st.mediaUrl) {
         if (video.getAttribute('src') !== st.mediaUrl) {
           video.src = st.mediaUrl;
           video.muted = true;
@@ -67,7 +76,7 @@ export function AudienceView() {
       }
 
       // CDG: desenhado a partir do relógio do operador
-      if (st.mode === 'cdg' && st.cdgUrl) {
+      if (st.cdgUrl) {
         if (cdgFor !== st.cdgUrl && canvasRef.current) {
           const url = (cdgFor = st.cdgUrl);
           cdg = null;
@@ -82,12 +91,23 @@ export function AudienceView() {
         cdgFor = null;
       }
 
-      // YouTube: único player ativo (com som) fica nesta janela
-      if (st.mode === 'youtube' && st.ytHere && st.ytId && ytRef.current) {
+      // YouTube: único player ativo (com som) fica nesta janela.
+      // Durante a vinheta não existe player: as regras do YouTube proíbem qualquer elemento na frente dele.
+      // Só o código do player e a conexão são adiantados; o player é criado, visível, quando a vinheta acaba.
+      if (st.ytHere && st.ytId && st.preparing) {
+        if (ytFor) dropYt();
+        if (warmedFor !== st.ytId) {
+          const id = (warmedFor = st.ytId);
+          warmYouTube()
+            .then(() => post({ type: 'yt-ready', ytId: id }))
+            .catch(() => post({ type: 'yt-error', code: -1 }));
+        }
+      } else if (st.ytHere && st.ytId && ytRef.current) {
         if (ytFor !== st.ytId) {
           dropYt();
           ytFor = st.ytId;
-          ytStartedAt = Date.now();
+          playAskedAt = Date.now();
+          ytRef.current.style.display = 'block'; // visível antes de criar o player
           ytp = new YtPlayer(ytRef.current, st.ytId, st.time, false, {
             onState: (state) => {
               if (state === YT_PLAYING) setNeedClick(false);
@@ -101,7 +121,7 @@ export function AudienceView() {
         if (st.status === 'paused' && state === YT_PLAYING) ytp?.pause();
         if (st.status === 'playing' && state === 2) ytp?.play();
         // navegadores podem bloquear som automático em janelas novas
-        if ((state === -1 || state === 5) && Date.now() - ytStartedAt > 4000) setNeedClick(true);
+        if ((state === -1 || state === 5) && Date.now() - playAskedAt > 4000) setNeedClick(true);
       } else if (ytFor) dropYt();
     };
 
@@ -117,7 +137,7 @@ export function AudienceView() {
     let raf = 0;
     const frame = () => {
       const st = latest.current;
-      if (cdg && st) cdg.render(expectedTime(st));
+      if (cdg && st && st.mode === 'cdg') cdg.render(expectedTime(st));
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -184,7 +204,7 @@ export function AudienceView() {
       <div className="aud-stage">
         <video ref={videoRef} className="aud-media" style={{ display: mode === 'video' ? 'block' : 'none' }} playsInline muted />
         <canvas ref={canvasRef} className="aud-media aud-cdg" style={{ display: mode === 'cdg' ? 'block' : 'none' }} />
-        <div ref={ytRef} className="aud-media yt-host" style={{ display: yt ? 'block' : 'none' }} />
+        <div ref={ytRef} className="aud-media yt-host" style={{ display: s?.ytHere && !s.preparing ? 'block' : 'none' }} />
 
         {mode === 'audio' && s && (
           <div className="aud-card">

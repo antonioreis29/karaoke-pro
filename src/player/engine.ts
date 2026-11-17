@@ -5,7 +5,7 @@ import { fail, getState, IDLE_PLAYBACK, orderedWaiting, setPlayback, setState, s
 import { VIDEO_FORMATS, type AudienceState, type PlayMode, type Song, type SyncMessage } from '../types';
 import { CdgPlayer, loadCdg } from './cdg';
 import { jingle } from './jingle';
-import { YT_ENDED, YT_PAUSED, YT_PLAYING, YtPlayer, ytErrorText } from './youtube';
+import { warmYouTube, YT_ENDED, YT_PAUSED, YT_PLAYING, YtPlayer, ytErrorText } from './youtube';
 
 const video = document.createElement('video');
 video.playsInline = true;
@@ -124,15 +124,17 @@ async function onEnded() {
 video.addEventListener('loadedmetadata', () => {
   const song = currentSong();
   if (!song || !Number.isFinite(video.duration)) return;
-  setPlayback({ duration: video.duration });
+  if (getState().playback.mode !== 'intro') setPlayback({ duration: video.duration });
   saveDuration(song, video.duration);
 });
 video.addEventListener('playing', () => setPlayback({ status: 'playing' }));
 video.addEventListener('pause', () => {
-  if (!video.ended && getState().playback.mode !== 'idle' && video.getAttribute('src')) setPlayback({ status: 'paused' });
+  const mode = getState().playback.mode;
+  if (!video.ended && mode !== 'idle' && mode !== 'intro' && video.getAttribute('src')) setPlayback({ status: 'paused' });
 });
 video.addEventListener('timeupdate', () => {
-  if (getState().playback.mode !== 'idle') setPlayback({ time: video.currentTime });
+  const mode = getState().playback.mode;
+  if (mode !== 'idle' && mode !== 'intro') setPlayback({ time: video.currentTime });
 });
 video.addEventListener('ended', () => void onEnded());
 video.addEventListener('error', () => {
@@ -165,7 +167,7 @@ function startYoutubeLocal(song: Song, start: number) {
   });
   applyVolume();
   ytPoll = window.setInterval(() => {
-    if (!ytp) return;
+    if (!ytp || getState().playback.mode === 'intro') return;
     const duration = ytp.duration();
     setPlayback({ time: ytp.time(), ...(duration ? { duration } : {}) });
     if (duration) saveDuration(song, duration);
@@ -184,6 +186,8 @@ function audienceJoined() {
     ytp = null;
     ytHost.replaceChildren();
     setPlayback({ ytHost: 'audience', time });
+  } else if (pb.mode === 'intro' && pb.ytHost === 'local' && currentSong()?.source === 'youtube') {
+    setPlayback({ ytHost: 'audience', ready: false }); // a tela do público adianta o código do player
   }
   publish();
 }
@@ -196,6 +200,10 @@ function audienceLost() {
   if (pb.mode === 'youtube' && pb.ytHost === 'audience' && song) {
     setPlayback({ ytHost: 'local' });
     startYoutubeLocal(song, pb.time);
+  } else if (pb.mode === 'intro' && pb.ytHost === 'audience' && song?.source === 'youtube') {
+    const my = loadToken;
+    setPlayback({ ytHost: 'local', ready: false });
+    warmYouTube().then(() => markReady(my)).catch(() => markReady(my));
   }
 }
 
@@ -203,7 +211,10 @@ channel.onmessage = (ev: MessageEvent<SyncMessage>) => {
   const m = ev.data;
   if (m.type === 'hello' || m.type === 'alive') audienceJoined();
   else if (m.type === 'bye') audienceLost();
-  else if (m.type === 'yt') {
+  else if (m.type === 'yt-ready') {
+    const pb = getState().playback;
+    if (pb.mode === 'intro' && pb.ytHost === 'audience' && currentSong()?.yt_id === m.ytId) setPlayback({ ready: true });
+  } else if (m.type === 'yt') {
     const pb = getState().playback;
     if (pb.mode !== 'youtube' || pb.ytHost !== 'audience') return;
     if (m.state === YT_ENDED) return void onEnded();
@@ -216,7 +227,7 @@ channel.onmessage = (ev: MessageEvent<SyncMessage>) => {
     if (song && m.duration) saveDuration(song, m.duration);
   } else if (m.type === 'yt-error') {
     const pb = getState().playback;
-    if (pb.mode === 'youtube' && pb.ytHost === 'audience') void handleError(ytErrorText(m.code));
+    if ((pb.mode === 'youtube' || pb.mode === 'intro') && pb.ytHost === 'audience') void handleError(ytErrorText(m.code));
   }
 };
 
@@ -233,12 +244,14 @@ function buildAudienceState(): AudienceState {
   const next = orderedWaiting(s.requests, s.settings.fairRotation)[0]?.req;
   const nextSong = next ? s.songMap.get(next.song_id) : undefined;
   const local = song && song.source === 'local';
+  const target = pb.mode === 'intro' && song ? modeOf(song) : pb.mode; // o que vai tocar depois da vinheta
   return {
     mode: pb.mode,
+    preparing: pb.mode === 'intro',
     status: pb.status,
     songId: pb.songId,
     ytId: song?.yt_id ?? null,
-    ytHere: pb.mode === 'youtube' && pb.ytHost === 'audience',
+    ytHere: target === 'youtube' && pb.ytHost === 'audience',
     title: song?.title ?? '',
     artist: song?.artist ?? '',
     singer: pb.singer,
@@ -247,8 +260,8 @@ function buildAudienceState(): AudienceState {
     sentAt: Date.now(),
     rate: pb.rate,
     volume: Math.min(1, s.settings.masterVolume * (song?.volume ?? 1)),
-    mediaUrl: local && pb.mode === 'video' ? mediaUrl(song.id) : null,
-    cdgUrl: local && pb.mode === 'cdg' ? cdgUrl(song.id) : null,
+    mediaUrl: local && target === 'video' ? mediaUrl(song.id) : null,
+    cdgUrl: local && target === 'cdg' ? cdgUrl(song.id) : null,
     nextSinger: next?.singer ?? '',
     nextTitle: nextSong?.title ?? '',
     countdown: pb.countdown,
@@ -278,28 +291,105 @@ setInterval(publish, 500);
 
 // ---------------------------------------------------------------- comandos
 
-/** Vinheta: apresenta o cantor e a música com a trilha de fundo e, ao final, inicia a reprodução. */
+/** Tempo máximo que a vinheta espera, além da duração configurada, por uma música lenta para carregar. */
+const PREP_GRACE = 20;
+
+function markReady(my: number) {
+  if (my === loadToken && getState().playback.mode === 'intro') setPlayback({ ready: true });
+}
+
+/** Espera o navegador ter dados suficientes para tocar o arquivo do início ao fim sem pausas. */
+function waitCanPlay(my: number): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      video.removeEventListener('canplaythrough', done);
+      clearInterval(check);
+      resolve();
+    };
+    const check = window.setInterval(() => {
+      if (my !== loadToken || video.readyState >= 4 || video.error) done();
+    }, 150);
+    video.addEventListener('canplaythrough', done);
+  });
+}
+
+/** Carrega a música durante a vinheta, sem tocar. */
+async function prepare(song: Song, my: number) {
+  const mode = modeOf(song);
+  if (mode === 'youtube') {
+    // Sem player escondido atrás da vinheta (regra do YouTube): só o código do player e a conexão.
+    // Na tela do público isso é feito lá, que avisa com "yt-ready".
+    if (getState().playback.ytHost === 'local') await warmYouTube().then(() => markReady(my));
+    return;
+  }
+  if (mode === 'cdg') {
+    const player = await loadCdg(cdgUrl(song.id), canvas);
+    if (my !== loadToken) return;
+    cdg = player;
+    cdgLoop();
+  }
+  video.preload = 'auto';
+  video.src = mediaUrl(song.id);
+  video.playbackRate = 1;
+  applyVolume();
+  video.load();
+  await waitCanPlay(my);
+  if (!video.error) markReady(my);
+}
+
+/** Fim da vinheta: a música (já carregada) começa na hora. */
+function begin(my: number) {
+  if (my !== loadToken) return;
+  const pb = getState().playback;
+  const song = currentSong();
+  if (pb.mode !== 'intro' || !song) return;
+  clearInterval(introTimer);
+  jingle.stop(0.6);
+  const mode = modeOf(song);
+  if (mode !== 'youtube' && !video.getAttribute('src')) {
+    // pulou a vinheta antes de o arquivo começar a carregar: carrega do jeito normal
+    return void load(song, pb.reqId, pb.singer).catch(fail);
+  }
+  const duration = mode !== 'youtube' && Number.isFinite(video.duration) ? video.duration : song.duration ?? 0;
+  setPlayback({ mode, status: 'loading', time: 0, duration, ready: false });
+  if (mode === 'youtube') {
+    if (pb.ytHost === 'local') startYoutubeLocal(song, 0);
+    return; // na tela do público, o novo estado faz a tela criar o player
+  }
+  video.play().catch((e) => {
+    if (my === loadToken && !video.error) void handleError(e instanceof Error ? e.message : String(e));
+  });
+}
+
+/** Vinheta: apresenta o cantor e a música com a trilha de fundo enquanto a música carrega. */
 function startIntro(song: Song, reqId: number, singer: string) {
   cancelCountdown();
   teardown();
+  const my = loadToken;
   const s = getState().settings;
   const total = Math.min(30, Math.max(3, s.vinhetaSeconds));
-  setPlayback({ ...IDLE_PLAYBACK, mode: 'intro', status: 'playing', reqId, songId: song.id, singer, duration: total });
+  const ytOnAudience = modeOf(song) === 'youtube' && getState().audienceOpen;
+  setPlayback({
+    ...IDLE_PLAYBACK, mode: 'intro', status: 'playing', reqId, songId: song.id, singer, duration: total,
+    ytHost: ytOnAudience ? 'audience' : 'local', ready: false,
+  });
   jingle.start(s.masterVolume * s.vinhetaVolume);
+  prepare(song, my).catch((e) => {
+    if (my === loadToken && !video.error) void handleError(e instanceof Error ? e.message : String(e));
+  });
   const started = performance.now();
   introTimer = window.setInterval(() => {
     const elapsed = (performance.now() - started) / 1000;
     if (elapsed < total) return setPlayback({ time: elapsed });
-    load(song, reqId, singer).catch(fail);
-  }, 200);
+    // a vinheta só termina com a música pronta (ou depois de uma espera máxima)
+    if (getState().playback.ready || elapsed >= total + PREP_GRACE) return begin(my);
+    setPlayback({ time: total });
+  }, 100);
 }
 
 /** Pula a vinheta e começa a música imediatamente. */
 export function skipIntro() {
-  const pb = getState().playback;
-  const song = currentSong();
-  if (pb.mode !== 'intro' || !song) return;
-  load(song, pb.reqId, pb.singer).catch(fail);
+  if (getState().playback.mode === 'intro') begin(loadToken);
 }
 
 async function load(song: Song, reqId: number | null, singer: string) {

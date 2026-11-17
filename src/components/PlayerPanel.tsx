@@ -114,6 +114,7 @@ export function PlayerPanel() {
             <span className="eyebrow">A seguir</span>
             <strong>{pb.singer}</strong>
             <span>{song?.title}{song?.artist ? ` — ${song.artist}` : ''}</span>
+            <span className="prep">{pb.ready ? 'Música carregada' : pb.time >= pb.duration ? 'Aguardando a música carregar…' : 'Carregando a música…'}</span>
             <button className="btn sm" onClick={skipIntro}>Pular vinheta</button>
           </div>
         )}

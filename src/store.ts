@@ -39,7 +39,7 @@ export type Dialog =
   | { type: 'importPath' };
 
 export const IDLE_PLAYBACK: Playback = {
-  mode: 'idle', status: 'idle', reqId: null, songId: null, singer: '', time: 0, duration: 0, rate: 1, ytHost: 'local', countdown: null,
+  mode: 'idle', status: 'idle', reqId: null, songId: null, singer: '', time: 0, duration: 0, rate: 1, ytHost: 'local', countdown: null, ready: false,
 };
 
 let state: AppState = {
@@ -133,6 +133,10 @@ export async function loadAll() {
   setState({ ready: true, requests: b.requests, settings, importStatus: b.importStatus });
   // identidade visual nova: troca uma única vez a cor antiga padrão pela atual
   if (settings.themeVersion < 2) updateSettings({ accent: DEFAULT_ACCENT, themeVersion: 2 });
+  // vinheta mais longa: atualiza quem ainda estava com a duração padrão antiga
+  if (getState().settings.themeVersion < 3) {
+    updateSettings({ themeVersion: 3, ...(getState().settings.vinhetaSeconds === 8 ? { vinhetaSeconds: 12 } : {}) });
+  }
 }
 
 // ---- regras da fila

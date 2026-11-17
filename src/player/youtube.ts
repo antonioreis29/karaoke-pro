@@ -25,6 +25,24 @@ export function loadYouTubeApi(): Promise<any> {
   return apiPromise;
 }
 
+/**
+ * Adianta o que as regras do YouTube permitem antes de existir um player: o código da IFrame Player API
+ * e as conexões com os servidores do YouTube. Nenhum player é criado aqui.
+ */
+let preconnected = false;
+export function warmYouTube(): Promise<unknown> {
+  if (!preconnected) {
+    preconnected = true;
+    for (const href of ['https://www.youtube.com', 'https://i.ytimg.com', 'https://www.google.com']) {
+      const link = document.createElement('link');
+      link.rel = 'preconnect';
+      link.href = href;
+      document.head.appendChild(link);
+    }
+  }
+  return loadYouTubeApi();
+}
+
 export const YT_ENDED = 0;
 export const YT_PLAYING = 1;
 export const YT_PAUSED = 2;
@@ -34,6 +52,7 @@ export function ytErrorText(code: number): string {
   if (code === 101 || code === 150 || code === 153) return 'O dono do vídeo não permite a reprodução incorporada';
   if (code === 100) return 'Vídeo removido ou privado';
   if (code === 2) return 'ID de vídeo inválido';
+  if (code === -1) return 'Sem conexão com o YouTube';
   return `O YouTube não conseguiu reproduzir este vídeo (erro ${code})`;
 }
 

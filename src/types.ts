@@ -89,7 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   leftWidth: 430,
   rightWidth: 350,
   vinheta: true,
-  vinhetaSeconds: 8,
+  vinhetaSeconds: 12,
   vinhetaVolume: 0.7,
   themeVersion: 0,
   mics: DEFAULT_MICS,
@@ -126,6 +126,8 @@ export interface Playback {
   rate: number;
   ytHost: 'local' | 'audience';
   countdown: number | null;
+  /** Durante a vinheta: a música já está carregada e pronta para começar. */
+  ready: boolean;
 }
 
 /** Estado enviado da tela do operador para a tela do público. */
@@ -135,6 +137,8 @@ export interface AudienceState {
   songId: number | null;
   ytId: string | null;
   ytHere: boolean;
+  /** Vinheta em andamento: a tela do público pré-carrega a mídia sem tocar. */
+  preparing: boolean;
   title: string;
   artist: string;
   singer: string;
@@ -161,7 +165,8 @@ export type SyncMessage =
   | { type: 'alive' }
   | { type: 'bye' }
   | { type: 'yt'; time: number; duration: number; state: number }
-  | { type: 'yt-error'; code: number };
+  | { type: 'yt-error'; code: number }
+  | { type: 'yt-ready'; ytId: string };
 
 export const VIDEO_FORMATS = new Set(['mp4', 'm4v', 'webm', 'mkv', 'avi', 'mov']);
 
