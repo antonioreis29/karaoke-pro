@@ -17,10 +17,14 @@ export interface Song {
   channel: string | null;
   license: string | null;
   dup_key: string;
+  /** Vídeo do YouTube que falhou por bloqueio de incorporação (1) e última verificação que tocou. */
+  blocked: number;
+  checked_at: number | null;
   added_at: number;
 }
 
-export type RequestStatus = 'waiting' | 'singing' | 'done' | 'skipped';
+/** 'pending': pedido feito pelo celular aguardando a aprovação do operador. */
+export type RequestStatus = 'pending' | 'waiting' | 'singing' | 'done' | 'skipped';
 
 export interface SingerRequest {
   id: number;
@@ -31,6 +35,21 @@ export interface SingerRequest {
   created_at: number;
   started_at: number | null;
   ended_at: number | null;
+  source: 'operator' | 'phone';
+}
+
+/** Situação dos pedidos pelo celular (servidor da rede local). */
+export interface PhoneInfo {
+  enabled: boolean;
+  running: boolean;
+  approval: boolean;
+  addresses: { name: string; address: string }[];
+  address: string | null;
+  url: string | null;
+  error: string;
+  youtube: boolean;
+  hasKey: boolean;
+  ytSearchesToday: number;
 }
 
 export interface Settings {
@@ -53,6 +72,7 @@ export interface Settings {
   vinhetaVolume: number;
   themeVersion: number;
   mics: MicSettings;
+  phoneOnAudience: boolean;
 }
 
 export interface MicChannel {
@@ -93,6 +113,7 @@ export const DEFAULT_SETTINGS: Settings = {
   vinhetaVolume: 0.7,
   themeVersion: 0,
   mics: DEFAULT_MICS,
+  phoneOnAudience: true,
 };
 
 export interface ImportStatus {
@@ -156,6 +177,9 @@ export interface AudienceState {
   waitMessage: string;
   showNext: boolean;
   accent: string;
+  /** QR code dos pedidos pelo celular (imagem PNG em data URL) e o endereço curto mostrado abaixo. */
+  phoneQr: string | null;
+  phoneHost: string | null;
 }
 
 export type SyncMessage =

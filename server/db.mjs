@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS requests (
   singer TEXT NOT NULL,
   song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
   position REAL NOT NULL,
-  status TEXT NOT NULL DEFAULT 'waiting',    -- waiting | singing | done | skipped
+  status TEXT NOT NULL DEFAULT 'waiting',    -- pending | waiting | singing | done | skipped
+  source TEXT NOT NULL DEFAULT 'operator',   -- operator | phone
   created_at INTEGER NOT NULL,
   started_at INTEGER,
   ended_at INTEGER
@@ -59,6 +60,14 @@ export function openDb(dataDir) {
   const db = new DatabaseSync(path.join(dataDir, 'karaoke-pro.sqlite'));
   db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  // bancos criados antes dos pedidos pelo celular
+  // vídeos do YouTube que o dono não deixa incorporar (marcados quando falham) e última verificação bem-sucedida
+  const songCols0 = db.prepare('PRAGMA table_info(songs)').all().map((c) => c.name);
+  if (!songCols0.includes('blocked')) db.exec('ALTER TABLE songs ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0');
+  if (!songCols0.includes('checked_at')) db.exec('ALTER TABLE songs ADD COLUMN checked_at INTEGER');
+  if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'source')) {
+    db.exec("ALTER TABLE requests ADD COLUMN source TEXT NOT NULL DEFAULT 'operator'");
+  }
   // Se o app foi fechado no meio de uma apresentação, ela volta para a fila.
   db.exec("UPDATE requests SET status='waiting', started_at=NULL WHERE status='singing'");
 
@@ -75,7 +84,7 @@ export function openDb(dataDir) {
     }
   };
 
-  const songCols = ['title', 'artist', 'genre', 'favorite', 'volume', 'duration'];
+  const songCols = ['title', 'artist', 'genre', 'favorite', 'volume', 'duration', 'blocked', 'checked_at'];
 
   return {
     raw: db,
@@ -86,6 +95,7 @@ export function openDb(dataDir) {
     allSongs: () => q('SELECT * FROM songs ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE').all(),
     getSong: (id) => q('SELECT * FROM songs WHERE id=?').get(id),
     getSongByPath: (p) => q('SELECT * FROM songs WHERE path=?').get(p),
+    blockedYtIds: () => new Set(q("SELECT yt_id FROM songs WHERE source='youtube' AND blocked=1").all().map((r) => r.yt_id)),
     insertSong(s) {
       const r = q(
         `INSERT OR IGNORE INTO songs (source,path,cdg_path,title,artist,genre,format,duration,size,mtime,yt_id,thumb,channel,license,dup_key,added_at)
@@ -100,7 +110,7 @@ export function openDb(dataDir) {
     updateSong(id, patch) {
       const keys = Object.keys(patch).filter((k) => songCols.includes(k));
       if (!keys.length) return;
-      const vals = keys.map((k) => (k === 'favorite' ? (patch[k] ? 1 : 0) : patch[k]));
+      const vals = keys.map((k) => (k === 'favorite' || k === 'blocked' ? (patch[k] ? 1 : 0) : patch[k]));
       q(`UPDATE songs SET ${keys.map((k) => `${k}=?`).join(',')} WHERE id=?`).run(...vals, id);
       if (keys.includes('title') || keys.includes('artist')) {
         const s = q('SELECT artist,title FROM songs WHERE id=?').get(id);
@@ -125,10 +135,10 @@ export function openDb(dataDir) {
     // ---- fila / histórico
     allRequests: () => q('SELECT * FROM requests ORDER BY position').all(),
     getRequest: (id) => q('SELECT * FROM requests WHERE id=?').get(id),
-    addRequest(singer, songId) {
+    addRequest(singer, songId, { source = 'operator', pending = false } = {}) {
       const max = q('SELECT COALESCE(MAX(position),0) AS m FROM requests').get().m;
-      const r = q('INSERT INTO requests (singer,song_id,position,created_at) VALUES (?,?,?,?)').run(
-        singer, songId, max + 1, Date.now()
+      const r = q('INSERT INTO requests (singer,song_id,position,status,source,created_at) VALUES (?,?,?,?,?,?)').run(
+        singer, songId, max + 1, pending ? 'pending' : 'waiting', source, Date.now()
       );
       return Number(r.lastInsertRowid);
     },
@@ -140,6 +150,11 @@ export function openDb(dataDir) {
       if (Number.isInteger(patch.songId)) next.song_id = patch.songId;
       if (['waiting', 'singing', 'done', 'skipped'].includes(patch.status) && patch.status !== cur.status) {
         next.status = patch.status;
+        // pedido do celular aprovado: entra no fim da fila, na ordem da aprovação
+        if (cur.status === 'pending' && patch.status === 'waiting') {
+          q('UPDATE requests SET position=(SELECT COALESCE(MAX(position),0)+1 FROM requests) WHERE id=?').run(id);
+          next.position = q('SELECT position FROM requests WHERE id=?').get(id).position;
+        }
         if (patch.status === 'singing') {
           next.started_at = Date.now();
           // só um cantor por vez
@@ -164,6 +179,9 @@ export function openDb(dataDir) {
     },
     deleteRequest: (id) => q('DELETE FROM requests WHERE id=?').run(id),
     clearHistory: () => q("DELETE FROM requests WHERE status IN ('done','skipped')").run(),
+    // ---- pedidos pelo celular
+    pendingCount: () => q("SELECT COUNT(*) AS n FROM requests WHERE status='pending'").get().n,
+    requestsByIds: (ids) => (ids.length ? q(`SELECT * FROM requests WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids) : []),
 
     // ---- configurações
     getSettings() {

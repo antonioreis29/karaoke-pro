@@ -7,6 +7,8 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.mjs';
 import { createLibrary, readZipPair } from './library.mjs';
+import { createPhoneServer, lanAddresses, newPhoneKey, refreshPrimaryAddress } from './phone.mjs';
+import { createYouTubeSearch, QuotaError, splitVideoTitle } from './youtube.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(__dirname, '..', 'dist');
@@ -109,6 +111,70 @@ export async function startServer(opts) {
   const db = openDb(opts.dataDir);
   const library = createLibrary(db);
   library.resumeMetadata();
+
+  let port = 0;
+  // pesquisa do YouTube feita pelo serviço local (celulares e alternativas para vídeos bloqueados)
+  const yt = createYouTubeSearch({
+    get referer() {
+      return `http://localhost:${port}/`;
+    },
+  });
+  /** Cria (ou reaproveita) a referência de um vídeo do YouTube no catálogo. */
+  const upsertYouTubeSong = (b) => {
+    const key = `yt:${b.ytId}`;
+    let song = db.getSongByPath(key);
+    if (!song) {
+      const title = String(b.title || 'Vídeo do YouTube').slice(0, 300);
+      const guess = b.songTitle ? { title: b.songTitle, artist: b.artist || '' } : splitVideoTitle(title);
+      db.insertSong({
+        source: 'youtube', path: key, format: 'youtube', yt_id: b.ytId,
+        title: String(guess.title || title).slice(0, 300), artist: String(guess.artist || '').slice(0, 200),
+        thumb: typeof b.thumb === 'string' ? b.thumb : `https://i.ytimg.com/vi/${b.ytId}/mqdefault.jpg`,
+        channel: String(b.channel || '').slice(0, 200), license: b.license === 'creativeCommon' ? 'creativeCommon' : 'youtube',
+        duration: Number.isFinite(b.duration) ? b.duration : null,
+      });
+      song = db.getSongByPath(key);
+    }
+    return song;
+  };
+
+  // ---- pedidos pelo celular (servidor separado na rede local, desligado por padrão)
+  let requestsVersion = 0; // muda quando chega um pedido pelo celular; a tela do operador consulta
+  let phoneError = '';
+  const phone = createPhoneServer({ db, yt, upsertYouTubeSong, onChange: () => requestsVersion++ });
+  const phoneInfo = async () => {
+    await refreshPrimaryAddress();
+    const st = db.getSettings();
+    const addresses = lanAddresses();
+    const address = addresses.find((a) => a.address === st.phoneAddress)?.address ?? addresses[0]?.address ?? null;
+    return {
+      enabled: !!st.phoneEnabled,
+      running: phone.running,
+      approval: st.phoneApproval !== false,
+      youtube: st.phoneYouTube !== false,
+      hasKey: !!st.ytApiKey,
+      ytSearchesToday: yt.searchesToday,
+      addresses,
+      address,
+      // o código vai depois do "#": não aparece em registros nem é enviado ao servidor pela URL
+      url: phone.running && address ? `http://${address}:${phone.port}/#k=${st.phoneKey}` : null,
+      error: phoneError,
+    };
+  };
+  const startPhone = async () => {
+    let st = db.getSettings();
+    if (!st.phoneKey) {
+      db.setSettings({ phoneKey: newPhoneKey() });
+      st = db.getSettings();
+    }
+    try {
+      await phone.start(st.phoneKey);
+      phoneError = '';
+    } catch (e) {
+      phoneError = `Não foi possível abrir os pedidos na rede: ${e.message}`;
+    }
+  };
+  if (db.getSettings().phoneEnabled) await startPhone();
   const token = crypto.randomBytes(24).toString('hex');
   let zipCache = null; // { id, mp3, cdg }
 
@@ -134,6 +200,28 @@ export async function startServer(opts) {
     }
     if (m === 'GET' && p === '/songs') return sendJson(res, 200, db.allSongs());
     if (m === 'GET' && p === '/requests') return sendJson(res, 200, db.allRequests());
+    if (m === 'GET' && p === '/requests/version') return sendJson(res, 200, { version: requestsVersion });
+    if (m === 'GET' && p === '/phone') return sendJson(res, 200, await phoneInfo());
+    if (m === 'PUT' && p === '/phone') {
+      const b = await readBody(req);
+      if (typeof b.approval === 'boolean') db.setSettings({ phoneApproval: b.approval });
+      if (typeof b.youtube === 'boolean') db.setSettings({ phoneYouTube: b.youtube });
+      if (typeof b.address === 'string' && lanAddresses().some((a) => a.address === b.address)) db.setSettings({ phoneAddress: b.address });
+      if (b.regenerate === true) {
+        const k = newPhoneKey();
+        db.setSettings({ phoneKey: k });
+        phone.setKey(k); // QR codes antigos param de funcionar
+      }
+      if (typeof b.enabled === 'boolean') {
+        db.setSettings({ phoneEnabled: b.enabled });
+        if (b.enabled) await startPhone();
+        else {
+          phone.stop();
+          phoneError = '';
+        }
+      }
+      return sendJson(res, 200, await phoneInfo());
+    }
     if (m === 'GET' && p === '/import/status') return sendJson(res, 200, library.status);
 
     if (m === 'POST' && p === '/import') {
@@ -152,20 +240,22 @@ export async function startServer(opts) {
     if (m === 'POST' && p === '/songs/youtube') {
       const b = await readBody(req);
       if (typeof b.ytId !== 'string' || !/^[\w-]{11}$/.test(b.ytId)) throw new HttpError(400, 'ID de vídeo inválido');
-      const key = `yt:${b.ytId}`;
-      let song = db.getSongByPath(key);
-      if (!song) {
-        const title = String(b.title || 'Vídeo do YouTube').slice(0, 300);
-        db.insertSong({
-          source: 'youtube', path: key, format: 'youtube', yt_id: b.ytId,
-          title: String(b.songTitle || title).slice(0, 300), artist: String(b.artist || '').slice(0, 200),
-          thumb: typeof b.thumb === 'string' ? b.thumb : `https://i.ytimg.com/vi/${b.ytId}/mqdefault.jpg`,
-          channel: String(b.channel || '').slice(0, 200), license: b.license === 'creativeCommon' ? 'creativeCommon' : 'youtube',
-          duration: Number.isFinite(b.duration) ? b.duration : null,
-        });
-        song = db.getSongByPath(key);
+      return sendJson(res, 200, upsertYouTubeSong(b));
+    }
+    if (m === 'GET' && p === '/youtube/alternatives') {
+      const song = db.getSong(Number(url.searchParams.get('songId')));
+      if (!song || song.source !== 'youtube') throw new HttpError(400, 'Música do YouTube inválida');
+      const st = db.getSettings();
+      if (!st.ytApiKey) throw new HttpError(400, 'Sem chave da YouTube Data API: não dá para procurar outra versão');
+      const exclude = new Set([song.yt_id, ...String(url.searchParams.get('exclude') || '').split(',').filter(Boolean)]);
+      const blocked = db.blockedYtIds();
+      const query = `${song.artist} ${song.title}`.trim();
+      try {
+        const results = await yt.search({ apiKey: st.ytApiKey, query, lang: st.ytLanguage || 'pt' });
+        return sendJson(res, 200, results.filter((r) => !exclude.has(r.ytId) && !blocked.has(r.ytId)).slice(0, 6));
+      } catch (e) {
+        throw new HttpError(e instanceof QuotaError ? 429 : 502, e.message);
       }
-      return sendJson(res, 200, song);
     }
     if (m === 'GET' && p === '/youtube/oembed') {
       const id = url.searchParams.get('id') || '';
@@ -187,6 +277,8 @@ export async function startServer(opts) {
         if (typeof b.favorite === 'boolean') patch.favorite = b.favorite;
         if (Number.isFinite(b.volume)) patch.volume = Math.min(1, Math.max(0, b.volume));
         if (Number.isFinite(b.duration) && b.duration > 0) patch.duration = b.duration;
+        if (typeof b.blocked === 'boolean') patch.blocked = b.blocked;
+        if (Number.isFinite(b.checkedAt)) patch.checked_at = b.checkedAt;
         db.updateSong(id, patch);
         return sendJson(res, 200, db.getSong(id));
       }
@@ -231,6 +323,7 @@ export async function startServer(opts) {
     if (m === 'PUT' && p === '/settings') {
       const b = await readBody(req);
       delete b.roots;
+      for (const k of ['phoneEnabled', 'phoneKey', 'phoneApproval', 'phoneAddress', 'phoneYouTube']) delete b[k]; // geridos por /phone
       db.setSettings(b);
       return sendJson(res, 200, db.getSettings());
     }
@@ -275,7 +368,6 @@ export async function startServer(opts) {
     serveFile(req, res, file, MIME[path.extname(file).slice(1).toLowerCase()] || 'application/octet-stream');
   }
 
-  let port = 0;
   const server = http.createServer(async (req, res) => {
     try {
       // Bloqueia DNS rebinding: só atende pelo endereço local.
@@ -322,6 +414,7 @@ export async function startServer(opts) {
     // "localhost" (e não o IP): o YouTube recusa a incorporação de vídeos de música em origens por IP (erro 150)
     url: `http://localhost:${port}/`,
     close: () => {
+      phone.stop();
       server.close();
       server.closeAllConnections?.();
       db.close();

@@ -214,16 +214,26 @@ export function AudienceView() {
         )}
 
         {idle && (
-          <div className="aud-wait">
+          <div className={`aud-wait ${s?.phoneQr ? 'with-qr' : ''}`}>
             <div className="burst b1" />
             <div className="burst b2" />
-            <div className="aud-wait-label">Prepare-se para o show</div>
-            <div className="aud-wait-title">{s?.waitTitle || 'Karaoke Pro'}</div>
-            {s && s.showNext && s.nextSinger && (
-              <div className="aud-next">
-                <span>{s.countdown != null ? `Começa em ${s.countdown}s` : 'A seguir'}</span>
-                <strong>{s.nextSinger}</strong>
-                {s.nextTitle && <em>{s.nextTitle}</em>}
+            {/* com o QR code ligado a tela vira duas colunas (título à esquerda, QR à direita): nada se sobrepõe */}
+            <div className="aud-main">
+              <div className="aud-wait-label">Prepare-se para o show</div>
+              <div className="aud-wait-title">{s?.waitTitle || 'Karaoke Pro'}</div>
+              {s && s.showNext && s.nextSinger && (
+                <div className="aud-next">
+                  <span>{s.countdown != null ? `Começa em ${s.countdown}s` : 'A seguir'}</span>
+                  <strong>{s.nextSinger}</strong>
+                  {s.nextTitle && <em>{s.nextTitle}</em>}
+                </div>
+              )}
+            </div>
+            {s?.phoneQr && (
+              <div className="aud-qr">
+                <img src={s.phoneQr} alt="QR code para pedir músicas pelo celular" />
+                <strong>Peça sua música pelo celular</strong>
+                <span>Aponte a câmera para o código{s.phoneHost ? ` ou abra ${s.phoneHost}` : ''} no Wi-Fi do local</span>
               </div>
             )}
             <div className="aud-wait-msg">{s ? s.waitMessage : 'Aguardando a tela do operador…'}</div>

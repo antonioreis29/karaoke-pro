@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { runImport } from '../actions';
 import { api } from '../api';
 import { playSong } from '../player/engine';
+import { setPhone } from '../phone';
 import { confirmDialog, fail, fmtTime, getState, setSongs, setState, toast, updateSettings, upsertSong, useApp } from '../store';
 import { fmtLabel } from './LibraryPanel';
 import { Icon } from './icons';
@@ -197,6 +198,76 @@ function ImportPathDialog() {
   );
 }
 
+function PhoneDialog() {
+  const phone = useApp((s) => s.phone);
+  const qr = useApp((s) => s.phoneQr);
+  const [busy, setBusy] = useState(false);
+  const run = async (patch: Parameters<typeof setPhone>[0]) => {
+    setBusy(true);
+    await setPhone(patch);
+    setBusy(false);
+  };
+  const regenerate = async () => {
+    const ok = await confirmDialog({
+      title: 'Gerar um novo código?',
+      message: 'O QR code muda e os celulares que já abriram a página precisam ler o código novo.',
+      confirmLabel: 'Gerar novo código',
+    });
+    if (ok) run({ regenerate: true });
+  };
+  const on = !!phone?.running;
+  return (
+    <Modal title="Pedidos pelo celular" onClose={close} wide>
+      <div className="form">
+        <label className="switch-row">
+          <button type="button" className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} disabled={busy || !phone} onClick={() => run({ enabled: !on })}><i /></button>
+          {on ? 'Recebendo pedidos pelo celular' : 'Pedidos pelo celular desligados'}
+        </label>
+        <div className="phone-box">
+          <div className={`phone-qr ${on && qr ? '' : 'off'}`}>
+            {on && qr ? <img src={qr} alt="QR code para pedir músicas" /> : 'Ligue os pedidos para gerar o QR code'}
+          </div>
+          <div className="phone-side">
+            <p className="hint">
+              Os convidados leem o QR code (ele também aparece na tela de espera do público), buscam uma música da sua biblioteca e digitam o nome.
+              A página do celular só faz pedidos: não controla a música nem vê a fila dos outros.
+            </p>
+            {on && phone?.url && <span className="phone-url">{phone.url.split('#')[0]}</span>}
+            {phone && phone.addresses.length > 1 && (
+              <label>
+                Rede usada no QR code
+                <select value={phone.address ?? ''} onChange={(e) => run({ address: e.target.value })} disabled={busy}>
+                  {phone.addresses.map((a) => <option key={a.address} value={a.address}>{a.address} ({a.name})</option>)}
+                </select>
+              </label>
+            )}
+            {phone && !phone.addresses.length && <p className="hint">Nenhuma rede encontrada. Conecte este computador ao Wi-Fi do local.</p>}
+            <label className="check">
+              <input type="checkbox" checked={phone?.approval ?? true} disabled={busy || !phone} onChange={(e) => run({ approval: e.target.checked })} />
+              Aprovar cada pedido antes de entrar na fila
+            </label>
+            <label className="check" title={phone?.hasKey ? '' : 'Precisa da chave da YouTube Data API (Configurações)'}>
+              <input type="checkbox" checked={!!phone?.youtube && !!phone?.hasKey} disabled={busy || !phone?.hasKey} onChange={(e) => run({ youtube: e.target.checked })} />
+              Convidados podem buscar no YouTube
+            </label>
+            {phone?.hasKey && phone.youtube && (
+              <p className="hint">
+                Cada busca nova gasta cerca de 1% da cota diária gratuita da sua chave; buscas repetidas não gastam. Limites: 1 busca a cada 20 s e 15 por dia por celular, 60 por dia somando todos. Hoje: {phone.ytSearchesToday} busca(s) no YouTube feitas pelo app.
+              </p>
+            )}
+            <button type="button" className="btn sm" onClick={regenerate} disabled={busy || !on}>Gerar novo código</button>
+          </div>
+        </div>
+        <p className="hint">
+          Os celulares precisam estar no mesmo Wi-Fi deste computador. Na primeira vez, o Windows pode perguntar se o Karaoke Pro pode usar a rede:
+          permita em <b>Redes privadas</b>. Cada celular pode fazer um pedido a cada 15 segundos e ter até 3 pedidos na fila.
+        </p>
+        <footer><button className="btn primary" onClick={close}>Concluir</button></footer>
+      </div>
+    </Modal>
+  );
+}
+
 const ACCENTS = ['#d9e88a', '#f4f0e1', '#ff8a5b', '#f472b6', '#7dd3fc', '#a78bfa'];
 
 function SettingsDialog() {
@@ -236,6 +307,7 @@ function SettingsDialog() {
         <label>Título da tela de espera<input value={s.waitTitle} maxLength={60} onChange={(e) => updateSettings({ waitTitle: e.target.value })} /></label>
         <label>Mensagem<input value={s.waitMessage} maxLength={140} onChange={(e) => updateSettings({ waitMessage: e.target.value })} /></label>
         <label className="check"><input type="checkbox" checked={s.showNextSinger} onChange={(e) => updateSettings({ showNextSinger: e.target.checked })} /> Mostrar o nome do próximo cantor</label>
+        <label className="check"><input type="checkbox" checked={s.phoneOnAudience} onChange={(e) => updateSettings({ phoneOnAudience: e.target.checked })} /> Mostrar o QR code de pedidos pelo celular na tela de espera</label>
 
         <h3>Aparência</h3>
         <div className="swatches">
@@ -267,6 +339,7 @@ export function Dialogs() {
       {dialog?.type === 'song' && <SongDialog key={dialog.songId} songId={dialog.songId} />}
       {dialog?.type === 'settings' && <SettingsDialog />}
       {dialog?.type === 'importPath' && <ImportPathDialog />}
+      {dialog?.type === 'phone' && <PhoneDialog />}
       {confirm && (
         <Modal title={confirm.title} onClose={() => confirm.resolve(false)}>
           <div className="form">

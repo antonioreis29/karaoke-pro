@@ -13,9 +13,29 @@ video.preload = 'auto';
 const canvas = document.createElement('canvas');
 const ytHost = document.createElement('div');
 ytHost.className = 'yt-host';
+const checkHost = document.createElement('div'); // player de verificação (visível, sem som) quando o palco está livre
+checkHost.className = 'yt-check';
 
 /** Elementos montados pelo painel central (pré-visualização). */
-export const surfaces = { video, canvas, ytHost };
+export const surfaces = { video, canvas, ytHost, checkHost };
+
+/** Chamado quando um vídeo do YouTube falha; devolve true se resolveu (por exemplo, trocando de versão). */
+type YoutubeFailureHandler = (code: number) => Promise<boolean>;
+let youtubeFailureHandler: YoutubeFailureHandler | null = null;
+export function setYoutubeFailureHandler(fn: YoutubeFailureHandler) {
+  youtubeFailureHandler = fn;
+}
+let failing = false;
+async function youtubeFailed(code: number) {
+  if (failing) return;
+  failing = true;
+  try {
+    if (youtubeFailureHandler && (await youtubeFailureHandler(code).catch(() => false))) return;
+    await handleError(code === -1 ? 'Sem conexão com o YouTube' : ytErrorText(code));
+  } finally {
+    failing = false;
+  }
+}
 
 let cdg: CdgPlayer | null = null;
 let ytp: YtPlayer | null = null;
@@ -163,7 +183,7 @@ function startYoutubeLocal(song: Song, start: number) {
       else if (st === YT_PAUSED) setPlayback({ status: 'paused' });
       else if (st === YT_ENDED) void onEnded();
     },
-    onError: (code) => void handleError(code === -1 ? 'Sem conexão com o YouTube' : ytErrorText(code)),
+    onError: (code) => void youtubeFailed(code),
   });
   applyVolume();
   ytPoll = window.setInterval(() => {
@@ -227,7 +247,7 @@ channel.onmessage = (ev: MessageEvent<SyncMessage>) => {
     if (song && m.duration) saveDuration(song, m.duration);
   } else if (m.type === 'yt-error') {
     const pb = getState().playback;
-    if ((pb.mode === 'youtube' || pb.mode === 'intro') && pb.ytHost === 'audience') void handleError(ytErrorText(m.code));
+    if ((pb.mode === 'youtube' || pb.mode === 'intro') && pb.ytHost === 'audience') void youtubeFailed(m.code);
   }
 };
 
@@ -268,6 +288,8 @@ function buildAudienceState(): AudienceState {
     waitTitle: s.settings.waitTitle,
     waitMessage: s.settings.waitMessage,
     showNext: s.settings.showNextSinger,
+    phoneQr: s.phone?.running && s.settings.phoneOnAudience ? s.phoneQr : null,
+    phoneHost: s.phone?.running && s.phone.url ? new URL(s.phone.url).host : null,
     accent: s.settings.accent,
   };
 }
@@ -436,6 +458,11 @@ export async function playRequest(reqId: number) {
 }
 
 /** Toca uma música sem cantor associado (teste do arquivo pelo operador). */
+/** Troca de versão no meio da apresentação: a nova música começa direto, sem vinheta. */
+export async function playReplacement(song: Song, reqId: number, singer: string) {
+  await load(song, reqId, singer);
+}
+
 export async function playSong(songId: number) {
   const song = getState().songMap.get(songId);
   if (!song) return;

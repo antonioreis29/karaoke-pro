@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { requestNext, requestStart } from '../actions';
 import { api } from '../api';
 import { stop } from '../player/engine';
+import { verifyQueue } from '../player/ytcheck';
 import { confirmDialog, fail, fmtTime, orderedWaiting, setState, toast, updateSettings, useApp } from '../store';
 import { Icon } from './icons';
 
@@ -11,6 +12,8 @@ export function QueuePanel() {
   const requests = useApp((s) => s.requests);
   const songMap = useApp((s) => s.songMap);
   const fair = useApp((s) => s.settings.fairRotation);
+  const ytCheck = useApp((s) => s.ytCheck);
+  const ytNetwork = useApp((s) => s.ytNetwork);
   const playing = useApp((s) => s.playback.mode !== 'idle');
   const [tab, setTab] = useState<'queue' | 'history'>('queue');
   const [drag, setDrag] = useState<{ id: number; dy: number; index: number } | null>(null);
@@ -23,6 +26,16 @@ export function QueuePanel() {
     [requests]
   );
   const currentSong = current ? songMap.get(current.song_id) : undefined;
+  const pending = useMemo(() => requests.filter((r) => r.status === 'pending').sort((a, b) => a.created_at - b.created_at), [requests]);
+  const approveAll = async () => {
+    try {
+      let list = requests;
+      for (const r of pending) list = await api.patchRequest(r.id, { status: 'waiting' });
+      setState({ requests: list });
+    } catch (e) {
+      fail(e);
+    }
+  };
   const set = (p: Promise<typeof requests>) => p.then((r) => setState({ requests: r })).catch(fail);
 
   /** Aplica a nova ordem. Com a rotação justa ligada, a ordem manual passa a valer e a rotação é desligada. */
@@ -128,6 +141,28 @@ export function QueuePanel() {
             )}
           </div>
 
+          {pending.length > 0 && (
+            <div className="pending">
+              <div className="pending-head">
+                <span className="eyebrow"><Icon name="phone" size={12} /> Pedidos pelo celular · {pending.length}</span>
+                <button className="btn sm" onClick={approveAll}>Aceitar todos</button>
+              </div>
+              {pending.map((r) => {
+                const song = songMap.get(r.song_id);
+                return (
+                  <div key={r.id} className="pending-row">
+                    <div className="song-main">
+                      <div className="t">{r.singer}</div>
+                      <div className="a">{song ? `${song.title}${song.artist ? ` — ${song.artist}` : ''}` : 'Música removida'}</div>
+                    </div>
+                    <button className="ghost" onClick={() => set(api.deleteRequest(r.id))} title="Recusar este pedido"><Icon name="x" size={15} /></button>
+                    <button className="add" onClick={() => set(api.patchRequest(r.id, { status: 'waiting' }))} title="Aceitar: entra no fim da fila"><Icon name="check" size={15} /></button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="queue-actions">
             <button className="btn primary grow" onClick={requestNext} disabled={!waiting.length}>
               <Icon name="next" /> {playing ? 'Próximo cantor' : 'Iniciar próximo'}
@@ -138,6 +173,19 @@ export function QueuePanel() {
             <input type="checkbox" checked={fair} onChange={(e) => updateSettings({ fairRotation: e.target.checked })} /> Rotação justa
             {fair && <span className="hint">arrastar um pedido volta para a ordem manual</span>}
           </label>
+          {waiting.some(({ req }) => songMap.get(req.song_id)?.source === 'youtube') && (
+            <div className="yt-verify">
+              {ytNetwork && (
+                <div className="yt-warn">
+                  <strong>O YouTube está recusando os vídeos nesta conexão</strong>
+                  <p>Ele está pedindo "confirme que você não é um robô" para esta internet. Não é problema das músicas nem do app, e trocar de vídeo não resolve. Costuma passar sozinho em algumas horas; outra rede (por exemplo, o 4G do celular) também resolve. Arquivos locais tocam normalmente.</p>
+                </div>
+              )}
+              <button className="btn sm" onClick={() => verifyQueue(true)} disabled={!!ytCheck} title="Testa na prévia, sem som, se cada vídeo do YouTube da fila toca, e troca os bloqueados por outra versão">
+                {ytCheck ? 'Verificando…' : ytNetwork ? 'Testar o YouTube de novo' : 'Verificar vídeos do YouTube'}
+              </button>
+            </div>
+          )}
 
           <div className="vlist" ref={listRef}>
             {waiting.length === 0 && (
@@ -159,7 +207,7 @@ export function QueuePanel() {
                   <span className="grip" title="Arraste para reordenar"><Icon name="grip" size={14} /></span>
                   <span className="pos">{i + 1}</span>
                   <div className="song-main">
-                    <div className="t">{req.singer}{fair && <span className="badge round">R{round}</span>}</div>
+                    <div className="t">{req.singer}{fair && <span className="badge round">R{round}</span>}{req.source === 'phone' && <span className="badge" title="Pedido feito pelo celular">celular</span>}{song?.blocked ? <span className="badge danger" title="Vídeo bloqueado pelo YouTube: troque a música deste pedido">vídeo bloqueado</span> : null}{song?.source === 'youtube' && !song.blocked && song.checked_at ? <span className="badge ok" title="Este vídeo tocou na verificação">verificado</span> : null}</div>
                     <div className="a">
                       {song ? `${song.title}${song.artist ? ` — ${song.artist}` : ''} · ${fmtTime(song.duration)}` : 'Música removida'}
                       {song?.missing ? <span className="badge danger">ausente</span> : null}

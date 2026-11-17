@@ -159,6 +159,7 @@ function LocalLibrary() {
                 <div className="a">{s.artist || 'Artista desconhecido'}{s.genre ? ` · ${s.genre}` : ''}</div>
               </div>
               {s.missing ? <span className="badge danger">ausente</span> : null}
+              {s.blocked ? <span className="badge danger" title="O YouTube não deixa tocar este vídeo fora do site">bloqueado</span> : null}
               <span className={`badge f-${s.format}`}>{fmtLabel(s.format)}</span>
               <span className="dur">{fmtTime(s.duration)}</span>
               <button className="ghost" onClick={() => setState({ dialog: { type: 'song', songId: s.id } })} title="Editar dados da música"><Icon name="edit" size={15} /></button>

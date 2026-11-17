@@ -19,6 +19,7 @@ export function OnlinePanel() {
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState('');
   const saved = new Set(songs.filter((s) => s.yt_id).map((s) => s.yt_id));
+  const blocked = new Set(songs.filter((s) => s.yt_id && s.blocked).map((s) => s.yt_id));
 
   const search = async (q = query) => {
     if (!q.trim() || busy) return;
@@ -121,7 +122,7 @@ export function OnlinePanel() {
             <p>Os vídeos tocam pelo player oficial do YouTube, com os anúncios e as restrições da plataforma. Nada é baixado: o catálogo guarda apenas a referência do vídeo.</p>
           </div>
         )}
-        {results.map((r) => (
+        {results.filter((r) => !blocked.has(r.ytId)).map((r) => (
           <div key={r.ytId} className="row yt" onDoubleClick={() => queue(r)}>
             <img src={r.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" />
             <div className="song-main">

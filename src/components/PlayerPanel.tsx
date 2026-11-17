@@ -51,6 +51,7 @@ export function PlayerPanel() {
   const pb = useApp((s) => s.playback);
   const songMap = useApp((s) => s.songMap);
   const settings = useApp((s) => s.settings);
+  const ytCheck = useApp((s) => s.ytCheck);
   const requests = useApp((s) => s.requests);
   const stage = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<'music' | 'mics'>('music');
@@ -58,11 +59,12 @@ export function PlayerPanel() {
 
   useEffect(() => {
     const el = stage.current!;
-    el.prepend(surfaces.video, surfaces.canvas, surfaces.ytHost);
+    el.prepend(surfaces.video, surfaces.canvas, surfaces.ytHost, surfaces.checkHost);
     return () => {
       surfaces.video.remove();
       surfaces.canvas.remove();
       surfaces.ytHost.remove();
+      surfaces.checkHost.remove();
     };
   }, []);
 
@@ -91,8 +93,8 @@ export function PlayerPanel() {
 
   return (
     <section className="panel center">
-      <div ref={stage} className={`stage mode-${pb.mode} ${ytRemote ? 'yt-remote' : ''}`} onDoubleClick={stageFullscreen}>
-        {idle && (
+      <div ref={stage} className={`stage mode-${pb.mode} ${ytRemote ? 'yt-remote' : ''} ${idle && ytCheck ? 'checking' : ''}`} onDoubleClick={stageFullscreen}>
+        {idle && !ytCheck && (
           <div className="stage-overlay">
             {pb.countdown != null && next ? (
               <>
@@ -131,10 +133,11 @@ export function PlayerPanel() {
             <span>O vídeo do YouTube toca em um único player oficial.</span>
           </div>
         )}
-        <span className={`live-tag s-${idle ? 'idle' : intro ? 'loading' : pb.status}`}>{statusLabel}</span>
+        {!(idle && ytCheck) && <span className={`live-tag s-${idle ? 'idle' : intro ? 'loading' : pb.status}`}>{statusLabel}</span>}
         <button className="stage-fs" onClick={stageFullscreen} title="Prévia em tela cheia (duplo clique)"><Icon name="expand" size={15} /></button>
       </div>
 
+      {idle && ytCheck && <div className="check-note"><i className="spin" /> {ytCheck.label} <span className="hint">(sem som, só na prévia)</span></div>}
       <div className="now">
         <div className="now-main">
           <div className="now-title">{song?.title ?? '—'}</div>

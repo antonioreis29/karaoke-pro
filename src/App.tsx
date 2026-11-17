@@ -8,6 +8,8 @@ import { PlayerPanel } from './components/PlayerPanel';
 import { QueuePanel } from './components/QueuePanel';
 import { applyVolume, openAudience, seekBy, stop, toggle } from './player/engine';
 import { restoreMics } from './player/mics';
+import { usePhoneWatcher } from './phone';
+import './player/ytcheck';
 import { fail, getState, loadAll, onAccent, setSongs, setState, toast, updateSettings, useApp } from './store';
 
 /** Tela cheia do aplicativo: janela nativa no desktop, API do navegador no modo web. */
@@ -130,6 +132,8 @@ export function App() {
   const audienceOpen = useApp((s) => s.audienceOpen);
   const importStatus = useApp((s) => s.importStatus);
   const toasts = useApp((s) => s.toasts);
+  const phoneOn = useApp((s) => !!s.phone?.running);
+  const pendingCount = useApp((s) => s.requests.filter((r) => r.status === 'pending').length);
   const [error, setError] = useState('');
   const booted = useRef(false);
 
@@ -141,6 +145,7 @@ export function App() {
       .catch((e) => setError(e.message));
   }, []);
   useImportWatcher();
+  usePhoneWatcher();
   useShortcuts();
   useEffect(() => applyVolume(), [settings.masterVolume]);
 
@@ -162,6 +167,10 @@ export function App() {
             </span>
           )}
         </div>
+        <button className={`btn ${phoneOn ? 'on' : ''}`} onClick={() => setState({ dialog: { type: 'phone' } })} title="Pedidos pelo celular: QR code e aprovação">
+          <Icon name="phone" /> Pedidos
+          {pendingCount > 0 ? <i className="phone-badge">{pendingCount}</i> : <i className={`dot ${phoneOn ? 'live' : ''}`} />}
+        </button>
         <button className={`btn ${audienceOpen ? 'on' : ''}`} onClick={openAudience} title="Abrir a tela do público (P)">
           <Icon name="screen" /> Tela do público
           <i className={`dot ${audienceOpen ? 'live' : ''}`} />

@@ -1,7 +1,7 @@
 // Estado global da tela do operador (store mínimo sobre useSyncExternalStore).
 import { useSyncExternalStore } from 'react';
 import { api } from './api';
-import { DEFAULT_ACCENT, DEFAULT_MICS, DEFAULT_SETTINGS, type ImportStatus, type Playback, type Settings, type SingerRequest, type Song } from './types';
+import { DEFAULT_ACCENT, DEFAULT_MICS, DEFAULT_SETTINGS, type ImportStatus, type PhoneInfo, type Playback, type Settings, type SingerRequest, type Song } from './types';
 
 export interface Toast {
   id: number;
@@ -29,6 +29,12 @@ export interface AppState {
   toasts: Toast[];
   confirm: ConfirmState | null;
   dialog: Dialog;
+  phone: PhoneInfo | null;
+  phoneQr: string | null;
+  /** Verificação dos vídeos do YouTube em andamento (texto mostrado ao operador). */
+  ytCheck: { active: boolean; label: string } | null;
+  /** O YouTube está recusando todos os vídeos nesta conexão (checagem "não sou um robô"). */
+  ytNetwork: { since: number } | null;
 }
 
 export type Dialog =
@@ -36,7 +42,8 @@ export type Dialog =
   | { type: 'request'; songId?: number; reqId?: number }
   | { type: 'song'; songId: number }
   | { type: 'settings' }
-  | { type: 'importPath' };
+  | { type: 'importPath' }
+  | { type: 'phone' };
 
 export const IDLE_PLAYBACK: Playback = {
   mode: 'idle', status: 'idle', reqId: null, songId: null, singer: '', time: 0, duration: 0, rate: 1, ytHost: 'local', countdown: null, ready: false,
@@ -54,6 +61,10 @@ let state: AppState = {
   toasts: [],
   confirm: null,
   dialog: null,
+  phone: null,
+  phoneQr: null,
+  ytCheck: null,
+  ytNetwork: null,
 };
 
 const listeners = new Set<() => void>();

@@ -329,10 +329,10 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin-right: 4p
 .aud-wait .b1 { width: 46vmin; right: -9vmin; top: -11vmin; background: var(--accent); }
 .aud-wait .b2 { width: 26vmin; left: -6vmin; bottom: 12vh; background: var(--paper); opacity: 0.9; animation-direction: reverse; animation-duration: 60s; }
 .aud-wait-label { font-family: var(--display); font-weight: 600; font-size: clamp(11px, 1.5vw, 26px); letter-spacing: 0.5em; margin-right: -0.5em; text-transform: uppercase; color: var(--accent); }
-.aud-wait-title { margin-top: 1.5vh; max-width: 88vw; font-family: var(--display); font-size: clamp(36px, 9.5vw, 190px); font-weight: 900; line-height: 0.98; text-transform: uppercase; overflow-wrap: anywhere; }
+.aud-wait-title { margin-top: 1.5vh; max-width: 88vw; font-family: var(--display); font-size: clamp(32px, min(9.5vw, 17vh), 190px); font-weight: 900; line-height: 0.98; text-transform: uppercase; overflow-wrap: anywhere; }
 .aud-next { margin-top: 5vh; padding: 2.2vh 4vw 2vh; border-radius: 2.4vh; background: var(--accent); color: var(--on-accent); display: flex; flex-direction: column; gap: 0.3vh; transform: rotate(-1.5deg); box-shadow: 0.8vh 0.8vh 0 var(--paper); }
 .aud-next span { font-family: var(--display); font-size: clamp(9px, 1.1vw, 20px); letter-spacing: 0.3em; text-transform: uppercase; font-weight: 700; }
-.aud-next strong { font-family: var(--display); font-size: clamp(22px, 4.2vw, 80px); font-weight: 900; line-height: 1.05; text-transform: uppercase; }
+.aud-next strong { font-family: var(--display); font-size: clamp(20px, min(3.6vw, 6.5vh), 72px); max-width: 44vw; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-weight: 900; line-height: 1.05; text-transform: uppercase; }
 .aud-next em { font-style: normal; font-size: clamp(13px, 1.9vw, 34px); font-weight: 600; }
 .aud-wait-msg { position: absolute !important; left: 0; right: 0; bottom: 0; padding: 2.2vh 4vw; background: var(--paper); color: var(--ink); font-family: var(--display); font-weight: 600; font-size: clamp(11px, 1.5vw, 28px); letter-spacing: 0.14em; text-transform: uppercase; }
 .aud-singer { margin-top: 5vh; font-family: var(--display); font-size: clamp(28px, 7vw, 130px); font-weight: 900; text-transform: uppercase; line-height: 1; }
@@ -355,3 +355,41 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin-right: 4p
 .aud-bar { flex: none; display: flex; align-items: center; justify-content: center; gap: 2vw; padding: 1.3vh 3vw; background: #0d0d0c; border-top: 0.4vh solid var(--accent); color: var(--paper); white-space: nowrap; overflow: hidden; }
 .aud-bar span { font-family: var(--display); font-size: clamp(13px, 2vw, 36px); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }
 .aud-bar b { color: var(--warn); font-size: clamp(11px, 1.3vw, 22px); }
+
+/* ---------- pedidos pelo celular */
+.pending { flex: none; margin: 0 8px 8px; padding: 10px; border-radius: 12px; border: 1.5px dashed color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 7%, var(--panel)); display: flex; flex-direction: column; gap: 6px; max-height: 210px; overflow-y: auto; }
+.pending-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pending-head .eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
+.pending-row { display: flex; align-items: center; gap: 6px; padding: 6px 4px; border-top: 1px solid var(--line); }
+.phone-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 800; display: inline-grid; place-items: center; font-style: normal; }
+.phone-box { display: grid; grid-template-columns: 220px 1fr; gap: 18px; align-items: start; }
+.phone-qr { width: 220px; height: 220px; border-radius: 14px; background: var(--paper); padding: 10px; display: grid; place-items: center; }
+.phone-qr img { width: 100%; height: 100%; image-rendering: pixelated; }
+.phone-qr.off { background: var(--raised); color: var(--faint); font-size: 12px; text-align: center; padding: 20px; }
+.phone-url { font-family: Consolas, monospace; font-size: 12px; color: var(--text); word-break: break-all; user-select: text; }
+.phone-side { display: flex; flex-direction: column; gap: 10px; }
+.phone-side select { height: 34px; border-radius: 10px; background: var(--bg); border: 1.5px solid var(--line); color: var(--text); padding: 0 8px; }
+.switch-row { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+/* a faixa de mensagem ocupa o rodapé: o conteúdo é centralizado no espaço acima dela */
+.aud-wait { padding-bottom: calc(5vh + clamp(11px, 1.5vw, 28px) * 1.4 + 4.4vh); }
+.aud-main { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+/* com o QR code: duas colunas */
+.aud-wait.with-qr { flex-direction: row; gap: 5vw; }
+.aud-wait.with-qr .aud-main { max-width: 56vw; }
+.aud-wait.with-qr .aud-wait-title { max-width: 56vw; font-size: clamp(30px, min(7vw, 15vh), 160px); }
+.aud-wait.with-qr .aud-next strong { max-width: 48vw; }
+.aud-qr { position: relative; flex: none; display: flex; flex-direction: column; align-items: center; gap: 1.2vh; max-width: 30vw; padding: 2.4vh 2vw 2.6vh; border-radius: 2vh; background: var(--paper); color: var(--ink); text-align: center; transform: rotate(1.5deg); box-shadow: -0.8vh 0.8vh 0 var(--accent); }
+.aud-qr img { width: clamp(120px, min(30vh, 22vw), 420px); height: clamp(120px, min(30vh, 22vw), 420px); image-rendering: pixelated; }
+.aud-qr strong { font-family: var(--display); font-size: clamp(13px, min(1.7vw, 3.2vh), 32px); font-weight: 800; line-height: 1.1; text-transform: uppercase; }
+.aud-qr span { font-size: clamp(11px, min(1.1vw, 2.1vh), 20px); font-weight: 600; }
+
+/* ---------- verificação dos vídeos do YouTube */
+.stage .yt-check { position: absolute; inset: 0; display: none; }
+.stage.checking { min-height: 220px; } /* o YouTube exige player de pelo menos 200×200 */
+.stage.checking .yt-check { display: block; }
+.yt-check iframe { width: 100%; height: 100%; border: 0; display: block; }
+.check-note { flex: none; display: flex; align-items: center; gap: 8px; margin-top: -4px; font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yt-verify { flex: none; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.yt-warn { margin-bottom: 8px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #6b2b22; background: #2a1411; }
+.yt-warn strong { color: var(--danger); }
+.yt-warn p { margin: 4px 0 0; color: var(--dim); font-size: 12px; }

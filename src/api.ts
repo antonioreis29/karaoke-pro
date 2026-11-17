@@ -1,4 +1,4 @@
-import type { ImportStatus, Settings, SingerRequest, Song } from './types';
+import type { ImportStatus, PhoneInfo, Settings, SingerRequest, Song } from './types';
 
 const token = window.__KP__?.token ?? '';
 
@@ -25,11 +25,12 @@ export interface Bootstrap {
 
 export const api = {
   bootstrap: () => call<Bootstrap>('GET', '/bootstrap'),
+  requests: () => call<SingerRequest[]>('GET', '/requests'),
   songs: () => call<Song[]>('GET', '/songs'),
   importPaths: (paths: string[]) => call<ImportStatus>('POST', '/import', { paths }),
   importStatus: () => call<ImportStatus>('GET', '/import/status'),
   reindex: () => call<ImportStatus>('POST', '/reindex'),
-  patchSong: (id: number, patch: Partial<Pick<Song, 'title' | 'artist' | 'genre' | 'volume' | 'duration'>> & { favorite?: boolean }) =>
+  patchSong: (id: number, patch: Partial<Pick<Song, 'title' | 'artist' | 'genre' | 'volume' | 'duration'>> & { favorite?: boolean; blocked?: boolean; checkedAt?: number }) =>
     call<Song>('PATCH', `/songs/${id}`, patch),
   deleteSong: (id: number) => call<{ songs: Song[]; requests: SingerRequest[] }>('DELETE', `/songs/${id}`),
   saveYoutube: (v: { ytId: string; title: string; songTitle?: string; artist?: string; channel?: string; thumb?: string; duration?: number | null; license?: string }) =>
@@ -42,4 +43,9 @@ export const api = {
   deleteRequest: (id: number) => call<SingerRequest[]>('DELETE', `/requests/${id}`),
   clearHistory: () => call<SingerRequest[]>('POST', '/requests/clear-history'),
   saveSettings: (s: Partial<Settings>) => call<Partial<Settings>>('PUT', '/settings', s),
+  requestsVersion: () => call<{ version: number }>('GET', '/requests/version'),
+  phone: () => call<PhoneInfo>('GET', '/phone'),
+  alternatives: (songId: number, exclude: string[]) =>
+    call<{ ytId: string; title: string; channel: string; thumb: string; duration: number | null; license: string }[]>('GET', `/youtube/alternatives?songId=${songId}&exclude=${encodeURIComponent(exclude.join(','))}`),
+  setPhone: (patch: { enabled?: boolean; approval?: boolean; youtube?: boolean; address?: string; regenerate?: boolean }) => call<PhoneInfo>('PUT', '/phone', patch),
 };

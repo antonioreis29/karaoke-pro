@@ -43,6 +43,12 @@ Os dados (catálogo, fila, histórico e configurações) ficam em um banco SQLit
 8. **Microfones**: aba *Microfones* abaixo do player. *Detectar microfones* lista as entradas do computador; cada uma tem liga/desliga, volume, medidor e mudo, além de volume geral, eco, graves e agudos. A voz sai pela mesma saída de som da música.
 9. **Tela cheia**: `F11` ou o botão no topo (aplicativo); `F`, `F11`, duplo clique ou o botão que aparece ao mover o mouse (tela do público); `Esc` sai.
 
+10. **Pedidos pelo celular**: botão *Pedidos* no topo. Ao ligar, aparece um QR code (também mostrado na tela de espera do público). Os convidados, no mesmo Wi-Fi, buscam uma música da biblioteca, digitam o nome e pedem; o pedido chega para o operador aprovar (ou direto na fila, se a aprovação estiver desligada), e o celular mostra a posição na fila.
+    - A página do celular só busca músicas e cria pedidos: não toca, não pausa e não vê a fila dos outros.
+    - Exige o código do QR code; *Gerar novo código* invalida os QR codes antigos. Limites: um pedido a cada 15 s e até 3 pedidos na fila por celular.
+    - Fica desligado por padrão. Na primeira vez, o Windows pode perguntar se o Karaoke Pro pode usar a rede: permita em *Redes privadas*.
+    - Os convidados também podem buscar no YouTube (opção na janela *Pedidos*, precisa da chave da API). A busca é feita pelo app, a chave não vai para o celular, e só gasta cota quando a pessoa toca em *Buscar no YouTube*: buscas repetidas vêm do cache. Limites: 1 busca nova a cada 20 s e 15 por dia por celular, 60 por dia somando todos.
+
 Atalhos: `Espaço` play/pause · `S` parar · `N` próximo cantor · `←/→` 5 s · `↑/↓` volume · `P` tela do público · `F11` tela cheia · `Ctrl+F` busca.
 
 ## Formatos
@@ -63,6 +69,12 @@ Atalhos: `Espaço` play/pause · `S` parar · `N` próximo cantor · `←/→` 5
 - A cota gratuita padrão permite cerca de 99 pesquisas por dia; resultados repetidos vêm do cache em memória.
 - Um vídeo do YouTube toca em um único player: na tela do público quando ela está aberta, senão na prévia do operador.
 - O filtro *Só Creative Commons* usa a licença informada pelo próprio YouTube (CC BY).
+- **Vídeos bloqueados** (o dono não deixa tocar fora do YouTube, erro 101/150, ou vídeo removido):
+  - *Verificação antecipada*: com o palco livre, o app testa na prévia do operador, sem som, cada vídeo do YouTube que está na fila (também pelo botão *Verificar vídeos do YouTube*). Os que tocam ganham o selo *verificado*.
+  - *Troca automática*: vídeo bloqueado é marcado e o pedido passa para outra versão da mesma música que tocou no teste (precisa da chave da API). Sem versão que toque, o operador é avisado para trocar a música.
+  - *Na hora*: se um vídeo falhar ao começar, outra versão entra sozinha (até 3 tentativas) e o cantor não perde a vez.
+  - Vídeos marcados como bloqueados somem das buscas do operador e dos celulares.
+  - *Conexão recusada*: o YouTube às vezes pede "confirme que você não é um robô" para uma conexão inteira, e o player informa isso com o mesmo erro de vídeo bloqueado. Por isso um vídeo só é marcado como bloqueado se outro vídeo do YouTube tocou no mesmo teste. Se nenhum toca, nada é marcado, a cota não é gasta com trocas inúteis e a fila mostra o aviso *O YouTube está recusando os vídeos nesta conexão*. O aviso some sozinho quando um vídeo volta a tocar.
 
 ## Estrutura
 
