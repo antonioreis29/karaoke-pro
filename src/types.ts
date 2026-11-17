@@ -149,6 +149,8 @@ export interface Playback {
   countdown: number | null;
   /** Durante a vinheta: a música já está carregada e pronta para começar. */
   ready: boolean;
+  /** A música em reprodução é um arquivo local (não um vídeo do YouTube). */
+  localMedia: boolean;
 }
 
 /** Estado enviado da tela do operador para a tela do público. */
@@ -188,8 +190,8 @@ export type SyncMessage =
   | { type: 'hello' }
   | { type: 'alive' }
   | { type: 'bye' }
-  | { type: 'yt'; time: number; duration: number; state: number }
-  | { type: 'yt-error'; code: number }
+  | { type: 'yt'; ytId: string; time: number; duration: number; state: number }
+  | { type: 'yt-error'; ytId: string; code: number }
   | { type: 'yt-ready'; ytId: string };
 
 export const VIDEO_FORMATS = new Set(['mp4', 'm4v', 'webm', 'mkv', 'avi', 'mov']);
@@ -197,6 +199,6 @@ export const VIDEO_FORMATS = new Set(['mp4', 'm4v', 'webm', 'mkv', 'avi', 'mov']
 declare global {
   interface Window {
     __KP__?: { token: string; desktop: boolean };
-    kpDesktop?: { pickFolder(): Promise<string[]>; pickFiles(): Promise<string[]>; toggleFullscreen(): Promise<boolean>; setFullscreen(on: boolean): Promise<void> };
+    kpDesktop?: { pickFolder(): Promise<string[]>; pickFiles(): Promise<string[]>; toggleFullscreen(): Promise<boolean>; setFullscreen(on: boolean): Promise<void>; youtubeStatus(): Promise<boolean>; youtubeLogin(): Promise<boolean>; youtubeLogout(): Promise<boolean> };
   }
 }

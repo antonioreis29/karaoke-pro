@@ -133,8 +133,8 @@ export function PlayerPanel() {
             <span>O vídeo do YouTube toca em um único player oficial.</span>
           </div>
         )}
-        {!(idle && ytCheck) && <span className={`live-tag s-${idle ? 'idle' : intro ? 'loading' : pb.status}`}>{statusLabel}</span>}
-        <button className="stage-fs" onClick={stageFullscreen} title="Prévia em tela cheia (duplo clique)"><Icon name="expand" size={15} /></button>
+        {pb.mode !== 'youtube' && !(idle && ytCheck) && <span className={`live-tag s-${idle ? 'idle' : intro ? 'loading' : pb.status}`}>{statusLabel}</span>}
+        {pb.mode !== 'youtube' && !(idle && ytCheck) && <button className="stage-fs" onClick={stageFullscreen} title="Prévia em tela cheia (duplo clique)"><Icon name="expand" size={15} /></button>}
       </div>
 
       {idle && ytCheck && <div className="check-note"><i className="spin" /> {ytCheck.label} <span className="hint">(sem som, só na prévia)</span></div>}

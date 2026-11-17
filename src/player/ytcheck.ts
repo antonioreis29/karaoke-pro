@@ -1,11 +1,11 @@
 // Proteção contra vídeos do YouTube que não tocam fora do site.
 //
-// O player informa o mesmo erro (150) em dois casos bem diferentes:
+// O erro 150 não dá informação suficiente para diagnosticar checagens da conexão:
 //  - o vídeo é que não pode ser incorporado (bloqueio do dono ou da gravadora): trocar de versão resolve;
 //  - o YouTube está pedindo "confirme que você não é um robô" para a conexão inteira: nenhum vídeo toca,
-//    e trocar de versão só gasta cota. Isso não tem como ser lido de dentro do player.
+//    e trocar de versão só gasta cota. Essa hipótese não pode ser confirmada só pelo erro.
 // Regra usada aqui: um vídeo só é marcado como bloqueado quando algum outro vídeo do YouTube tocou na mesma
-// verificação (prova de que a conexão está boa). Se nenhum toca, o app avisa que o problema é a conexão.
+// verificação. Se nenhum toca, o app interrompe as tentativas e avisa que a causa não foi confirmada.
 //
 // 1. Verificação antecipada: com o palco livre, cada vídeo da fila é testado na prévia do operador —
 //    player visível, sem nada na frente e sem som (mute pela própria API), como as regras do YouTube exigem.
@@ -21,6 +21,7 @@ import { YT_PLAYING, YtPlayer } from './youtube';
 const BLOCKED_CODES = new Set([100, 101, 150]);
 const RECHECK_MS = 6 * 3600_000;
 const MAX_ALTERNATIVES = 3;
+const lastAttempt = new Map<number, number>();
 
 type ProbeResult = 'ok' | 'blocked' | 'unknown';
 
@@ -35,7 +36,7 @@ function setNetworkProblem(on: boolean) {
   if (!!getState().ytNetwork === on) return;
   setState({ ytNetwork: on ? { since: Date.now() } : null });
   if (on) {
-    toast('O YouTube está recusando todos os vídeos nesta conexão ("confirme que você não é um robô"). Não é problema das músicas.', 'error');
+    toast('Os vídeos testados falharam. A causa ainda não foi confirmada: pode ser restrição dos vídeos, identificação do player ou conexão.', 'error');
   } else toast('O YouTube voltou a tocar vídeos nesta conexão', 'ok');
 }
 
@@ -112,7 +113,7 @@ async function moveRequest(req: SingerRequest, to: Song) {
 let running = false;
 
 const needsCheck = (s: Song | undefined) =>
-  !!s && s.source === 'youtube' && !s.blocked && (!s.checked_at || Date.now() - s.checked_at > RECHECK_MS);
+  !!s && s.source === 'youtube' && !s.blocked && Date.now() - (lastAttempt.get(s.id) ?? 0) > 300000 && (!s.checked_at || Date.now() - s.checked_at > RECHECK_MS);
 
 function queuedYoutube(): { req: SingerRequest; song: Song }[] {
   const { requests, songMap } = getState();
@@ -157,11 +158,13 @@ export async function verifyQueue(manual = false) {
   try {
     // fase 1: testa todos, sem marcar nada ainda
     const ok: Song[] = [];
+    let unknown = 0;
     const failed: { req: SingerRequest; song: Song }[] = [];
     for (let i = 0; i < todo.length; i++) {
       if (!isIdle()) return;
       const { req, song } = todo[i];
       label(`Verificando vídeos do YouTube ${i + 1}/${todo.length}: ${song.title}`);
+      lastAttempt.set(song.id, Date.now());
       const r = await probe(song.yt_id!);
       if (r === 'ok') {
         ok.push(song);
@@ -169,14 +172,20 @@ export async function verifyQueue(manual = false) {
         else upsertSong(await api.patchSong(song.id, { checkedAt: Date.now() }));
       } else if (r === 'blocked') failed.push({ req, song });
       else if (!isIdle()) return; // interrompido pelo operador: continua depois
+      else unknown++;
     }
     if (!failed.length) {
+      if (unknown) {
+        if (!ok.length) setNetworkProblem(true);
+        if (manual) toast(`${unknown} vídeo(s) sem resultado conclusivo. Confira o player e tente novamente.`, 'error');
+        return;
+      }
       setNetworkProblem(false);
       if (manual) toast(`Vídeos da fila verificados: ${ok.length} tocam`, 'ok');
       return;
     }
 
-    // fase 2: decide se é o vídeo ou a conexão
+    // fase 2: testa versões alternativas, sem afirmar uma causa para falhas gerais
     let connectionOk = ok.length > 0;
     for (const { req, song } of failed) {
       if (!isIdle()) return;
@@ -187,7 +196,7 @@ export async function verifyQueue(manual = false) {
       if (alt === null) return; // interrompido ou sem chave da API
       if (alt === 'none') {
         if (!connectionOk) {
-          // nada toca: é a conexão, não os vídeos. Não marca nada e não gasta mais cota.
+          // Nada tocou: interrompe as tentativas. A causa continua inconclusiva.
           setNetworkProblem(true);
           return;
         }
@@ -244,7 +253,7 @@ setYoutubeFailureHandler(async (code) => {
   if (!BLOCKED_CODES.has(code) || pb.reqId == null || !song || song.source !== 'youtube') return false;
   failsInARow++;
   if (getState().ytNetwork || failsInARow >= 2) {
-    // a troca também falhou (ou a conexão já estava com problema): é a conexão, não o vídeo
+    // A troca também falhou: interrompe, sem afirmar que a causa é a conexão.
     pendingMarks.delete(pb.reqId);
     setNetworkProblem(true);
     return false;
@@ -257,13 +266,16 @@ setYoutubeFailureHandler(async (code) => {
   toast(`O vídeo de "${song.title}" não tocou. Tentando outra versão…`);
   const list = await alternatives(song, seen);
   const c = list?.[0];
-  if (!c || getState().playback.reqId !== reqId) return false;
+  const stillCurrent = () => getState().playback.mode === 'youtube' && getState().playback.reqId === reqId && getState().playback.songId === song.id;
+  if (!c || !stillCurrent()) return false;
   seen.add(c.ytId);
   const alt = await api.saveYoutube({ ...c });
   upsertSong(alt);
+  if (!stillCurrent()) return false;
   pendingMarks.set(reqId, song);
   const req = getState().requests.find((r) => r.id === reqId);
   if (req) await moveRequest(req, alt);
+  if (!stillCurrent()) return false;
   await playReplacement(alt, reqId, singer);
   return true;
 });

@@ -12,6 +12,7 @@
     "web": "vite build && node server/standalone.mjs",
     "serve": "node server/standalone.mjs",
     "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
     "dist": "vite build && npx --yes electron-builder --win"
   },
   "build": {

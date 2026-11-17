@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { saveYoutubeResult } from '../actions';
 import { api } from '../api';
 import { parseVideoId, searchKaraoke, type YtResult } from '../player/youtube';
-import { fail, fmtTime, getState, setState, toast, updateSettings, useApp } from '../store';
+import { fail, fmtTime, setState, toast, updateSettings, useApp } from '../store';
 import { Icon } from './icons';
 
 // Persistem enquanto o app está aberto, mesmo ao trocar de aba
@@ -31,8 +31,6 @@ export function OnlinePanel() {
       setResults(r);
       setQuery(q);
       if (!r.length) toast('Nenhum vídeo incorporável encontrado para essa busca');
-      const recent = [q.trim(), ...getState().settings.ytRecent.filter((x) => x.toLowerCase() !== q.trim().toLowerCase())].slice(0, 8);
-      updateSettings({ ytRecent: recent });
     } catch (e) {
       fail(e);
     } finally {
@@ -94,11 +92,6 @@ export function OnlinePanel() {
                 <input type="checkbox" checked={ccOnly} onChange={(e) => setCcOnly(e.target.checked)} /> Só Creative Commons
               </label>
             </div>
-            {settings.ytRecent.length > 0 && (
-              <div className="chips">
-                {settings.ytRecent.map((q) => <button key={q} onClick={() => search(q)}>{q}</button>)}
-              </div>
-            )}
           </>
         ) : (
           <div className="notice">

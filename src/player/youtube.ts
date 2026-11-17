@@ -10,13 +10,21 @@ export function loadYouTubeApi(): Promise<any> {
     const w = window as any;
     if (w.YT?.Player) return resolve(w.YT);
     const prev = w.onYouTubeIframeAPIReady;
+    const timer = window.setTimeout(() => {
+      apiPromise = null;
+      s.remove();
+      reject(new Error('O YouTube demorou demais para carregar'));
+    }, 20000);
     w.onYouTubeIframeAPIReady = () => {
-      prev?.();
+      clearTimeout(timer);
+      try { prev?.(); } catch { /* outro consumidor da API */ }
       resolve(w.YT);
     };
     const s = document.createElement('script');
     s.src = 'https://www.youtube.com/iframe_api';
     s.onerror = () => {
+      clearTimeout(timer);
+      s.remove();
       apiPromise = null;
       reject(new Error('Sem conexão com o YouTube'));
     };
@@ -49,7 +57,9 @@ export const YT_PAUSED = 2;
 export const YT_BUFFERING = 3;
 
 export function ytErrorText(code: number): string {
-  if (code === 101 || code === 150 || code === 153) return 'O dono do vídeo não permite a reprodução incorporada';
+  if (code === 101 || code === 150) return `O YouTube recusou a reprodução incorporada deste vídeo (erro ${code}). Tente outra versão.`;
+  if (code === 153) return 'O YouTube não recebeu a identificação do player (erro 153). Abra o app pelo endereço localhost e verifique o Referer.';
+  if (code === 5) return 'O YouTube não conseguiu reproduzir o vídeo em HTML5 (erro 5)';
   if (code === 100) return 'Vídeo removido ou privado';
   if (code === 2) return 'ID de vídeo inválido';
   if (code === -1) return 'Sem conexão com o YouTube';
@@ -59,6 +69,7 @@ export function ytErrorText(code: number): string {
 export interface YtHandlers {
   onState(state: number): void;
   onError(code: number): void;
+  onAutoplayBlocked?(): void;
 }
 
 /** Envolve um YT.Player criado dentro de `host`. */
@@ -66,10 +77,18 @@ export class YtPlayer {
   private player: any = null;
   private ready = false;
   private destroyed = false;
+  private playWhenReady = true;
   private queue: (() => void)[] = [];
 
   constructor(host: HTMLElement, videoId: string, start: number, controls: boolean, private handlers: YtHandlers) {
-    const mount = document.createElement('div');
+    // A política deve estar definida antes da navegação do iframe, inclusive em WebViews.
+    const mount = document.createElement('iframe');
+    mount.referrerPolicy = 'strict-origin-when-cross-origin';
+    mount.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    mount.allowFullscreen = true;
+    mount.title = 'Player do YouTube';
+    const params = new URLSearchParams({ enablejsapi: '1', autoplay: '0', controls: controls ? '1' : '0', rel: '0', playsinline: '1', start: String(Math.floor(start)), origin: location.origin });
+    mount.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params}`;
     host.replaceChildren(mount);
     loadYouTubeApi()
       .then((YT) => {
@@ -78,28 +97,31 @@ export class YtPlayer {
           width: '100%',
           height: '100%',
           videoId,
-          playerVars: { autoplay: 1, controls: controls ? 1 : 0, rel: 0, playsinline: 1, start: Math.floor(start), origin: location.origin },
+          playerVars: { autoplay: 0, controls: controls ? 1 : 0, rel: 0, playsinline: 1, start: Math.floor(start), origin: location.origin },
           events: {
             onReady: () => {
+              if (this.destroyed) return;
               this.ready = true;
               this.queue.splice(0).forEach((f) => f());
-              this.player.playVideo();
+              if (this.playWhenReady) this.player.playVideo();
             },
-            onStateChange: (e: any) => this.handlers.onState(e.data),
-            onError: (e: any) => this.handlers.onError(e.data),
+            onStateChange: (e: any) => { if (!this.destroyed) this.handlers.onState(e.data); },
+            onError: (e: any) => { if (!this.destroyed) this.handlers.onError(e.data); },
+            onAutoplayBlocked: () => { if (!this.destroyed) this.handlers.onAutoplayBlocked?.(); },
           },
         });
       })
-      .catch(() => this.handlers.onError(-1));
+      .catch(() => { if (!this.destroyed) this.handlers.onError(-1); });
   }
 
   private run(f: () => void) {
+    if (this.destroyed) return;
     if (this.ready) f();
     else this.queue.push(f);
   }
 
-  play = () => this.run(() => this.player.playVideo());
-  pause = () => this.run(() => this.player.pauseVideo());
+  play = () => { this.playWhenReady = true; this.run(() => this.player.playVideo()); };
+  pause = () => { this.playWhenReady = false; this.run(() => this.player.pauseVideo()); };
   seek = (t: number) => this.run(() => this.player.seekTo(t, true));
   setVolume = (v: number) => this.run(() => this.player.setVolume(Math.round(v * 100)));
   setRate = (r: number) => this.run(() => this.player.setPlaybackRate(r));
@@ -109,6 +131,7 @@ export class YtPlayer {
 
   destroy() {
     this.destroyed = true;
+    this.queue = [];
     try {
       this.player?.destroy();
     } catch {
@@ -160,7 +183,7 @@ function score(title: string): number {
 }
 
 async function yt(path: string, params: Record<string, string>) {
-  const res = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${new URLSearchParams(params)}`);
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${new URLSearchParams(params)}`, { signal: AbortSignal.timeout(15000) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const reason = data?.error?.errors?.[0]?.reason;

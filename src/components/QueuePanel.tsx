@@ -3,6 +3,7 @@ import { requestNext, requestStart } from '../actions';
 import { api } from '../api';
 import { stop } from '../player/engine';
 import { verifyQueue } from '../player/ytcheck';
+import { YouTubeAccount } from './YouTubeAccount';
 import { confirmDialog, fail, fmtTime, orderedWaiting, setState, toast, updateSettings, useApp } from '../store';
 import { Icon } from './icons';
 
@@ -177,8 +178,10 @@ export function QueuePanel() {
             <div className="yt-verify">
               {ytNetwork && (
                 <div className="yt-warn">
-                  <strong>O YouTube está recusando os vídeos nesta conexão</strong>
-                  <p>Ele está pedindo "confirme que você não é um robô" para esta internet. Não é problema das músicas nem do app, e trocar de vídeo não resolve. Costuma passar sozinho em algumas horas; outra rede (por exemplo, o 4G do celular) também resolve. Arquivos locais tocam normalmente.</p>
+                  <strong>Não foi possível confirmar a reprodução dos vídeos</strong>
+                  <p>Os vídeos testados falharam. O player não informa se há uma checagem de login ou da conexão. Confira o código do erro e teste o link no navegador. Cópias locais continuam disponíveis.</p>
+                  <p>Se o YouTube estiver pedindo “confirme que você não é um robô”, entrar na sua conta costuma resolver:</p>
+                  <YouTubeAccount compact />
                 </div>
               )}
               <button className="btn sm" onClick={() => verifyQueue(true)} disabled={!!ytCheck} title="Testa na prévia, sem som, se cada vídeo do YouTube da fila toca, e troca os bloqueados por outra versão">

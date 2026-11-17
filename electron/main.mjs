@@ -71,7 +71,7 @@ function createOperatorWindow() {
     },
   });
   operator.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(server.url)) return { action: 'allow', overrideBrowserWindowOptions: audienceWindowOptions() };
+    if (new URL(url).origin === new URL(server.url).origin) return { action: 'allow', overrideBrowserWindowOptions: audienceWindowOptions() };
     if (/^https:\/\//.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
@@ -79,7 +79,7 @@ function createOperatorWindow() {
   fullscreenKeys(operator);
   // A interface nunca navega para fora do servidor local
   operator.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(server.url)) e.preventDefault();
+    if (new URL(url).origin !== new URL(server.url).origin) e.preventDefault();
   });
   operator.on('closed', () => {
     operator = null;
@@ -108,6 +108,71 @@ ipcMain.handle('kp:set-fullscreen', (event, on) => {
   BrowserWindow.fromWebContents(event.sender)?.setFullScreen(!!on);
 });
 
+// ---------------------------------------------------------------- conta do YouTube no app
+// O player oficial às vezes pede "faça login para confirmar que você não é um robô". O operador pode entrar na
+// própria conta do YouTube pela página oficial de login do Google; os cookies ficam na sessão do app e o player
+// incorporado passa a tocar com a conta. Nada aqui lê, guarda ou envia senhas.
+const YOUTUBE_LOGIN_URL =
+  'https://accounts.google.com/ServiceLogin?service=youtube&passive=true&continue=' +
+  encodeURIComponent('https://www.youtube.com/signin?action_handle_signin=true&app=desktop&next=%2F');
+let loginWindow = null;
+
+async function youtubeSignedIn() {
+  const cookies = await session.defaultSession.cookies.get({ domain: 'youtube.com' });
+  return cookies.some((c) => c.name === 'LOGIN_INFO' || c.name === 'SAPISID' || c.name === '__Secure-3PSID');
+}
+
+ipcMain.handle('kp:youtube-status', () => youtubeSignedIn());
+
+ipcMain.handle('kp:youtube-login', (event) => {
+  if (loginWindow) {
+    loginWindow.focus();
+    return new Promise((resolve) => loginWindow.once('closed', () => youtubeSignedIn().then(resolve)));
+  }
+  return new Promise((resolve) => {
+    loginWindow = new BrowserWindow({
+      parent: BrowserWindow.fromWebContents(event.sender) ?? undefined,
+      width: 520,
+      height: 720,
+      title: 'Entrar no YouTube',
+      autoHideMenuBar: true,
+      backgroundColor: '#ffffff',
+      webPreferences: { contextIsolation: true, sandbox: true },
+    });
+    // links de ajuda e janelas extras abrem no navegador do Windows
+    loginWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (/^https:\/\//.test(url)) shell.openExternal(url);
+      return { action: 'deny' };
+    });
+    loginWindow.webContents.on('will-navigate', (e, url) => {
+      if (!/^https:\/\//.test(url)) e.preventDefault();
+    });
+    // terminou o login (voltou para o YouTube com a sessão aberta): fecha sozinha
+    const check = async () => {
+      if (!loginWindow) return;
+      const onYouTube = /^https:\/\/(www\.)?youtube\.com\//.test(loginWindow.webContents.getURL());
+      if (onYouTube && (await youtubeSignedIn())) loginWindow?.close();
+    };
+    loginWindow.webContents.on('did-navigate', check);
+    loginWindow.webContents.on('did-finish-load', check);
+    loginWindow.on('closed', () => {
+      loginWindow = null;
+      youtubeSignedIn().then(resolve);
+    });
+    loginWindow.loadURL(YOUTUBE_LOGIN_URL);
+  });
+});
+
+ipcMain.handle('kp:youtube-logout', async () => {
+  const all = await session.defaultSession.cookies.get({});
+  const mine = all.filter((c) => /(^|\.)(youtube|google)\.com$/.test((c.domain || '').replace(/^\./, '')));
+  await Promise.all(
+    mine.map((c) => session.defaultSession.cookies.remove(`https://${(c.domain || '').replace(/^\./, '')}${c.path || '/'}`, c.name).catch(() => undefined))
+  );
+  await session.defaultSession.cookies.flushStore();
+  return youtubeSignedIn();
+});
+
 app.on('second-instance', () => {
   if (operator) {
     if (operator.isMinimized()) operator.restore();
@@ -120,7 +185,13 @@ app.whenReady().then(async () => {
     Menu.setApplicationMenu(null); // sem barra de menus: a janela fica limpa, inclusive em tela cheia
     server = await startServer({ dataDir: path.join(app.getPath('userData'), 'data'), desktop: true });
     // Permissões: microfone só para a própria interface; tela cheia para o app e para o player do YouTube
-    const own = (url) => typeof url === 'string' && url.startsWith(server.url);
+    const own = (url) => { try { return new URL(url).origin === new URL(server.url).origin; } catch { return false; } };
+    // Algumas versões de WebView omitem o Referer. Identifica o próprio app apenas quando ele faltar.
+    session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube.com/embed/*'] }, (details, callback) => {
+      const headers = details.requestHeaders;
+      if (!Object.keys(headers).some((k) => k.toLowerCase() === 'referer' && headers[k])) headers.Referer = 'https://br.karaokepro.app/';
+      callback({ requestHeaders: headers });
+    });
     session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
       if (permission === 'fullscreen') return callback(true);
       if (permission === 'media') return callback(own(details.requestingUrl) && !(details.mediaTypes || []).includes('video'));

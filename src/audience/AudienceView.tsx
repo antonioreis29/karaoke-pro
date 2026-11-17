@@ -100,7 +100,7 @@ export function AudienceView() {
           const id = (warmedFor = st.ytId);
           warmYouTube()
             .then(() => post({ type: 'yt-ready', ytId: id }))
-            .catch(() => post({ type: 'yt-error', code: -1 }));
+            .catch(() => post({ type: 'yt-error', ytId: id, code: -1 }));
         }
       } else if (st.ytHere && st.ytId && ytRef.current) {
         if (ytFor !== st.ytId) {
@@ -108,12 +108,14 @@ export function AudienceView() {
           ytFor = st.ytId;
           playAskedAt = Date.now();
           ytRef.current.style.display = 'block'; // visível antes de criar o player
-          ytp = new YtPlayer(ytRef.current, st.ytId, st.time, false, {
+          const id = st.ytId;
+          ytp = new YtPlayer(ytRef.current, id, st.time, true, {
             onState: (state) => {
               if (state === YT_PLAYING) setNeedClick(false);
-              post({ type: 'yt', time: ytp?.time() ?? 0, duration: ytp?.duration() ?? 0, state });
+              post({ type: 'yt', ytId: id, time: ytp?.time() ?? 0, duration: ytp?.duration() ?? 0, state });
             },
-            onError: (code) => post({ type: 'yt-error', code }),
+            onError: (code) => post({ type: 'yt-error', ytId: id, code }),
+            onAutoplayBlocked: () => setNeedClick(true),
           });
         }
         ytp?.setVolume(st.volume);
@@ -144,7 +146,7 @@ export function AudienceView() {
 
     const tick = setInterval(() => {
       apply();
-      if (ytp) post({ type: 'yt', time: ytp.time(), duration: ytp.duration(), state: ytp.state() === 0 ? -1 : ytp.state() });
+      if (ytp && ytFor) post({ type: 'yt', ytId: ytFor, time: ytp.time(), duration: ytp.duration(), state: ytp.state() === 0 ? -1 : ytp.state() });
     }, 250);
     const alive = setInterval(() => post({ type: 'alive' }), 1500);
     const bye = () => post({ type: 'bye' });

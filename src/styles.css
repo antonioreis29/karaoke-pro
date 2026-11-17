@@ -103,9 +103,6 @@ button:disabled { cursor: default; opacity: 0.4; }
 .search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--text); user-select: text; }
 .filters { display: flex; gap: 6px; align-items: center; }
 .filters select { flex: 1; min-width: 0; height: 27px; border-radius: 99px; background: var(--raised); border: 1px solid var(--line); color: var(--dim); font-size: 12px; padding: 0 6px; }
-.chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.chips button { padding: 2px 10px; border-radius: 99px; border: 1px solid var(--line); color: var(--dim); font-size: 11px; }
-.chips button:hover { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
 .notice { padding: 12px; border-radius: 10px; background: var(--raised); border: 1px solid var(--line); }
 .notice p { margin: 4px 0 8px; color: var(--dim); font-size: 12px; }
 
@@ -393,3 +390,8 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin-right: 4p
 .yt-warn { margin-bottom: 8px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #6b2b22; background: #2a1411; }
 .yt-warn strong { color: var(--danger); }
 .yt-warn p { margin: 4px 0 0; color: var(--dim); font-size: 12px; }
+
+/* ---------- conta do YouTube */
+.yt-account { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.yt-account .hint { flex: 1 1 260px; }
+.yt-account.compact { margin-top: 8px; }

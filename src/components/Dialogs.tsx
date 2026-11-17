@@ -6,6 +6,7 @@ import { setPhone } from '../phone';
 import { confirmDialog, fail, fmtTime, getState, setSongs, setState, toast, updateSettings, upsertSong, useApp } from '../store';
 import { fmtLabel } from './LibraryPanel';
 import { Icon } from './icons';
+import { YouTubeAccount } from './YouTubeAccount';
 
 const close = () => setState({ dialog: null });
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -276,6 +277,7 @@ function SettingsDialog() {
     <Modal title="Configurações" onClose={close} wide>
       <div className="form settings">
         <h3>Repertório online (YouTube)</h3>
+        <YouTubeAccount />
         <label>
           Chave da YouTube Data API v3
           <input type="password" value={s.ytApiKey} onChange={(e) => updateSettings({ ytApiKey: e.target.value.trim() })} placeholder="AIza…" autoComplete="off" spellCheck={false} />

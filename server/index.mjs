@@ -260,7 +260,7 @@ export async function startServer(opts) {
     if (m === 'GET' && p === '/youtube/oembed') {
       const id = url.searchParams.get('id') || '';
       if (!/^[\w-]{11}$/.test(id)) throw new HttpError(400, 'ID de vídeo inválido');
-      const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`);
+      const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`, { signal: AbortSignal.timeout(15000) });
       if (!r.ok) throw new HttpError(404, 'Vídeo não encontrado ou sem permissão de incorporação');
       const j = await r.json();
       return sendJson(res, 200, { title: j.title, channel: j.author_name, thumb: j.thumbnail_url });
@@ -370,11 +370,17 @@ export async function startServer(opts) {
 
   const server = http.createServer(async (req, res) => {
     try {
+      res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
       // Bloqueia DNS rebinding: só atende pelo endereço local.
       if (req.headers.host !== `127.0.0.1:${port}` && req.headers.host !== `localhost:${port}`) {
         throw new HttpError(403, 'Host não permitido');
       }
       const url = new URL(req.url, `http://127.0.0.1:${port}`);
+      // Uma única origem mantém player, tela do público e BroadcastChannel alinhados.
+      if (req.headers.host === `127.0.0.1:${port}` && (req.method === 'GET' || req.method === 'HEAD') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/media/')) {
+        res.writeHead(307, { Location: `http://localhost:${port}${url.pathname}${url.search}` });
+        return res.end();
+      }
       if (url.pathname.startsWith('/api/')) {
         if (req.headers['x-kp-token'] !== token) throw new HttpError(401, 'Não autorizado');
         return await api(req, res, url);
@@ -411,7 +417,7 @@ export async function startServer(opts) {
 
   return {
     port,
-    // "localhost" (e não o IP): o YouTube recusa a incorporação de vídeos de música em origens por IP (erro 150)
+    // Origem canônica para as duas janelas e para a identificação do player.
     url: `http://localhost:${port}/`,
     close: () => {
       phone.stop();

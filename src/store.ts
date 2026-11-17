@@ -46,7 +46,7 @@ export type Dialog =
   | { type: 'phone' };
 
 export const IDLE_PLAYBACK: Playback = {
-  mode: 'idle', status: 'idle', reqId: null, songId: null, singer: '', time: 0, duration: 0, rate: 1, ytHost: 'local', countdown: null, ready: false,
+  mode: 'idle', status: 'idle', reqId: null, songId: null, singer: '', time: 0, duration: 0, rate: 1, ytHost: 'local', countdown: null, ready: false, localMedia: false,
 };
 
 let state: AppState = {

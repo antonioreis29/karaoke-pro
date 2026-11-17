@@ -28,9 +28,11 @@ export function setYoutubeFailureHandler(fn: YoutubeFailureHandler) {
 let failing = false;
 async function youtubeFailed(code: number) {
   if (failing) return;
+  const failedToken = loadToken;
   failing = true;
   try {
     if (youtubeFailureHandler && (await youtubeFailureHandler(code).catch(() => false))) return;
+    if (failedToken !== loadToken) return; // o operador já parou ou iniciou outra apresentação
     await handleError(code === -1 ? 'Sem conexão com o YouTube' : ytErrorText(code));
   } finally {
     failing = false;
@@ -175,15 +177,22 @@ function cdgLoop() {
 // ---------------------------------------------------------------- YouTube
 
 function startYoutubeLocal(song: Song, start: number) {
+  const my = loadToken;
   clearInterval(ytPoll);
   ytp?.destroy();
   ytp = new YtPlayer(ytHost, song.yt_id!, start, true, {
     onState: (st) => {
+      if (my !== loadToken) return;
       if (st === YT_PLAYING) setPlayback({ status: 'playing' });
       else if (st === YT_PAUSED) setPlayback({ status: 'paused' });
       else if (st === YT_ENDED) void onEnded();
     },
     onError: (code) => void youtubeFailed(code),
+    onAutoplayBlocked: () => {
+      if (my !== loadToken) return;
+      setPlayback({ status: 'paused' });
+      toast('O navegador bloqueou o início automático. Clique em Play no vídeo do YouTube.');
+    },
   });
   applyVolume();
   ytPoll = window.setInterval(() => {
@@ -206,7 +215,7 @@ function audienceJoined() {
     ytp = null;
     ytHost.replaceChildren();
     setPlayback({ ytHost: 'audience', time });
-  } else if (pb.mode === 'intro' && pb.ytHost === 'local' && currentSong()?.source === 'youtube') {
+  } else if (pb.mode === 'intro' && pb.ytHost === 'local' && !pb.localMedia && currentSong()?.source === 'youtube') {
     setPlayback({ ytHost: 'audience', ready: false }); // a tela do público adianta o código do player
   }
   publish();
@@ -220,7 +229,7 @@ function audienceLost() {
   if (pb.mode === 'youtube' && pb.ytHost === 'audience' && song) {
     setPlayback({ ytHost: 'local' });
     startYoutubeLocal(song, pb.time);
-  } else if (pb.mode === 'intro' && pb.ytHost === 'audience' && song?.source === 'youtube') {
+  } else if (pb.mode === 'intro' && pb.ytHost === 'audience' && !pb.localMedia && song?.source === 'youtube') {
     const my = loadToken;
     setPlayback({ ytHost: 'local', ready: false });
     warmYouTube().then(() => markReady(my)).catch(() => markReady(my));
@@ -237,6 +246,7 @@ channel.onmessage = (ev: MessageEvent<SyncMessage>) => {
   } else if (m.type === 'yt') {
     const pb = getState().playback;
     if (pb.mode !== 'youtube' || pb.ytHost !== 'audience') return;
+    if (currentSong()?.yt_id !== m.ytId) return;
     if (m.state === YT_ENDED) return void onEnded();
     setPlayback({
       time: m.time,
@@ -247,7 +257,7 @@ channel.onmessage = (ev: MessageEvent<SyncMessage>) => {
     if (song && m.duration) saveDuration(song, m.duration);
   } else if (m.type === 'yt-error') {
     const pb = getState().playback;
-    if ((pb.mode === 'youtube' || pb.mode === 'intro') && pb.ytHost === 'audience') void youtubeFailed(m.code);
+    if ((pb.mode === 'youtube' || pb.mode === 'intro') && pb.ytHost === 'audience' && currentSong()?.yt_id === m.ytId) void youtubeFailed(m.code);
   }
 };
 
@@ -263,8 +273,8 @@ function buildAudienceState(): AudienceState {
   const song = currentSong();
   const next = orderedWaiting(s.requests, s.settings.fairRotation)[0]?.req;
   const nextSong = next ? s.songMap.get(next.song_id) : undefined;
-  const local = song && song.source === 'local';
-  const target = pb.mode === 'intro' && song ? modeOf(song) : pb.mode; // o que vai tocar depois da vinheta
+  const local = song && pb.localMedia;
+  const target = pb.mode === 'intro' && song ? (song.source === 'youtube' ? (pb.localMedia ? 'video' : 'youtube') : modeOf(song)) : pb.mode;
   return {
     mode: pb.mode,
     preparing: pb.mode === 'intro',
@@ -337,7 +347,7 @@ function waitCanPlay(my: number): Promise<void> {
 
 /** Carrega a música durante a vinheta, sem tocar. */
 async function prepare(song: Song, my: number) {
-  const mode = modeOf(song);
+  const mode = song.source === 'youtube' ? (getState().playback.localMedia ? 'video' : 'youtube') : modeOf(song);
   if (mode === 'youtube') {
     // Sem player escondido atrás da vinheta (regra do YouTube): só o código do player e a conexão.
     // Na tela do público isso é feito lá, que avisa com "yt-ready".
@@ -367,7 +377,7 @@ function begin(my: number) {
   if (pb.mode !== 'intro' || !song) return;
   clearInterval(introTimer);
   jingle.stop(0.6);
-  const mode = modeOf(song);
+  const mode = song.source === 'youtube' ? (pb.localMedia ? 'video' : 'youtube') : modeOf(song);
   if (mode !== 'youtube' && !video.getAttribute('src')) {
     // pulou a vinheta antes de o arquivo começar a carregar: carrega do jeito normal
     return void load(song, pb.reqId, pb.singer).catch(fail);
@@ -394,6 +404,7 @@ function startIntro(song: Song, reqId: number, singer: string) {
   setPlayback({
     ...IDLE_PLAYBACK, mode: 'intro', status: 'playing', reqId, songId: song.id, singer, duration: total,
     ytHost: ytOnAudience ? 'audience' : 'local', ready: false,
+    localMedia: modeOf(song) !== 'youtube',
   });
   jingle.start(s.masterVolume * s.vinhetaVolume);
   prepare(song, my).catch((e) => {
@@ -423,6 +434,7 @@ async function load(song: Song, reqId: number | null, singer: string) {
   setPlayback({
     ...IDLE_PLAYBACK, mode, status: 'loading', reqId, songId: song.id, singer,
     duration: song.duration ?? 0, ytHost: ytOnAudience ? 'audience' : 'local',
+    localMedia: mode !== 'youtube',
   });
   if (mode === 'youtube') {
     if (!ytOnAudience) startYoutubeLocal(song, 0);

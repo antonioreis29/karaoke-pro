@@ -72,9 +72,14 @@ Atalhos: `Espaço` play/pause · `S` parar · `N` próximo cantor · `←/→` 5
 - **Vídeos bloqueados** (o dono não deixa tocar fora do YouTube, erro 101/150, ou vídeo removido):
   - *Verificação antecipada*: com o palco livre, o app testa na prévia do operador, sem som, cada vídeo do YouTube que está na fila (também pelo botão *Verificar vídeos do YouTube*). Os que tocam ganham o selo *verificado*.
   - *Troca automática*: vídeo bloqueado é marcado e o pedido passa para outra versão da mesma música que tocou no teste (precisa da chave da API). Sem versão que toque, o operador é avisado para trocar a música.
-  - *Na hora*: se um vídeo falhar ao começar, outra versão entra sozinha (até 3 tentativas) e o cantor não perde a vez.
+  - *Na hora*: se um vídeo falhar ao começar, outra versão é tentada uma vez e o cantor não perde a vez. A verificação antecipada pode testar até três alternativas.
   - Vídeos marcados como bloqueados somem das buscas do operador e dos celulares.
-  - *Conexão recusada*: o YouTube às vezes pede "confirme que você não é um robô" para uma conexão inteira, e o player informa isso com o mesmo erro de vídeo bloqueado. Por isso um vídeo só é marcado como bloqueado se outro vídeo do YouTube tocou no mesmo teste. Se nenhum toca, nada é marcado, a cota não é gasta com trocas inúteis e a fila mostra o aviso *O YouTube está recusando os vídeos nesta conexão*. O aviso some sozinho quando um vídeo volta a tocar.
+  - *Falha geral*: vários vídeos falhando não provam uma checagem anti-robô. O app interrompe tentativas automáticas e mostra um aviso inconclusivo. Ele não atribui a causa à conexão nem marca todos os vídeos como bloqueados.
+  - **153**: falta de identificação do player/Referer; diferente de **101/150**, que indicam recusa da incorporação. A interface envia `Referrer-Policy: strict-origin-when-cross-origin`, informa sua origem ao player e usa `localhost` nas duas janelas. No Electron, se o Referer estiver ausente, a própria identidade do app é enviada. Isso não remove restrições do vídeo.
+  - Bloqueio de autoplay é tratado separadamente: use o Play do player oficial, que também fica disponível na tela do público.
+- **Conta do YouTube no app**: quando o player pede "faça login para confirmar que você não é um robô", use *Entrar no YouTube* (Configurações ou o aviso na fila). Abre a página oficial de login do Google numa janela do app; a sessão fica guardada no app e o player passa a tocar com a sua conta. O app não vê nem guarda a senha. *Sair da conta* apaga essa sessão do app (não afeta o navegador). O Google pode recusar o login em aplicativos desse tipo; nesse caso, use o modo web (`npm.cmd run web`) no Chrome ou no Edge com o YouTube já conectado.
+
+Validação do código: `npm run typecheck`, `npm test` e `npm run build`. Os testes usam bancos temporários e não gastam cota da API.
 
 ## Estrutura
 

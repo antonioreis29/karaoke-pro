@@ -55,7 +55,7 @@ export function createYouTubeSearch(opts) {
   let day = new Date().toDateString();
 
   async function call(path, params) {
-    const res = await fetch(`${API_BASE}/${path}?${new URLSearchParams(params)}`, { headers: { Referer: opts.referer } });
+    const res = await fetch(`${API_BASE}/${path}?${new URLSearchParams(params)}`, { headers: { Referer: opts.referer }, signal: AbortSignal.timeout(15000) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const reason = data?.error?.errors?.[0]?.reason;
