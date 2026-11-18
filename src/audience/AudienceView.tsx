@@ -216,7 +216,7 @@ export function AudienceView() {
         )}
 
         {idle && (
-          <div className={`aud-wait ${s?.phoneQr ? 'with-qr' : ''}`}>
+          <div className={`aud-wait ${s?.phoneQr && s.phoneOnWait ? 'with-qr' : ''}`}>
             <div className="burst b1" />
             <div className="burst b2" />
             {/* com o QR code ligado a tela vira duas colunas (título à esquerda, QR à direita): nada se sobrepõe */}
@@ -231,7 +231,7 @@ export function AudienceView() {
                 </div>
               )}
             </div>
-            {s?.phoneQr && (
+            {s?.phoneQr && s.phoneOnWait && (
               <div className="aud-qr">
                 <img src={s.phoneQr} alt="QR code para pedir músicas pelo celular" />
                 <strong>Peça sua música pelo celular</strong>
@@ -258,11 +258,20 @@ export function AudienceView() {
         )}
       </div>
 
-      {/* Só o nome da música, em uma faixa própria: nada é sobreposto ao vídeo. */}
+      {/* Faixa própria, abaixo do vídeo: nada é sobreposto ao player (regra do YouTube). */}
       {playing && s && (
-        <div className="aud-bar">
+        <div className={`aud-bar ${s.phoneQr && s.phoneOnSong ? 'with-qr' : ''}`}>
           <span>{s.title}</span>
           {yt && needClick && <b>Clique no vídeo para iniciar</b>}
+          {s.phoneQr && s.phoneOnSong && (
+            <div className="bar-qr">
+              <div>
+                <strong>Peça a próxima!</strong>
+                <em>Aponte a câmera{s.phoneHost ? ` ou abra ${s.phoneHost}` : ''}</em>
+              </div>
+              <img src={s.phoneQr} alt="QR code para pedir músicas pelo celular" />
+            </div>
+          )}
         </div>
       )}
 

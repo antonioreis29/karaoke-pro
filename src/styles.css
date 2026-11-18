@@ -352,6 +352,14 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin-right: 4p
 .aud-bar { flex: none; display: flex; align-items: center; justify-content: center; gap: 2vw; padding: 1.3vh 3vw; background: #0d0d0c; border-top: 0.4vh solid var(--accent); color: var(--paper); white-space: nowrap; overflow: hidden; }
 .aud-bar span { font-family: var(--display); font-size: clamp(13px, 2vw, 36px); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }
 .aud-bar b { color: var(--warn); font-size: clamp(11px, 1.3vw, 22px); }
+/* QR code na faixa de baixo: o vídeo encolhe um pouco, nada fica por cima dele */
+.aud-bar.with-qr { justify-content: space-between; padding: 1vh 1.2vh 1vh 3vw; }
+.aud-bar.with-qr > span { flex: 1; min-width: 0; text-align: left; }
+.bar-qr { flex: none; display: flex; align-items: center; gap: 1.2vw; padding: 0.8vh 0.8vh 0.8vh 1.4vw; border-radius: 1.4vh; background: var(--accent); color: var(--on-accent); }
+.bar-qr div { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3vh; white-space: nowrap; }
+.bar-qr strong { font-family: var(--display); font-size: clamp(12px, min(1.6vw, 2.8vh), 30px); font-weight: 900; text-transform: uppercase; }
+.bar-qr em { font-style: normal; font-weight: 600; font-size: clamp(10px, min(1vw, 1.8vh), 18px); }
+.bar-qr img { width: clamp(64px, 14vh, 190px); height: clamp(64px, 14vh, 190px); border-radius: 0.8vh; image-rendering: pixelated; background: var(--paper); padding: 0.5vh; }
 
 /* ---------- pedidos pelo celular */
 .pending { flex: none; margin: 0 8px 8px; padding: 10px; border-radius: 12px; border: 1.5px dashed color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 7%, var(--panel)); display: flex; flex-direction: column; gap: 6px; max-height: 210px; overflow-y: auto; }

@@ -310,6 +310,7 @@ function SettingsDialog() {
         <label>Mensagem<input value={s.waitMessage} maxLength={140} onChange={(e) => updateSettings({ waitMessage: e.target.value })} /></label>
         <label className="check"><input type="checkbox" checked={s.showNextSinger} onChange={(e) => updateSettings({ showNextSinger: e.target.checked })} /> Mostrar o nome do próximo cantor</label>
         <label className="check"><input type="checkbox" checked={s.phoneOnAudience} onChange={(e) => updateSettings({ phoneOnAudience: e.target.checked })} /> Mostrar o QR code de pedidos pelo celular na tela de espera</label>
+        <label className="check"><input type="checkbox" checked={s.phoneQrDuringSong} onChange={(e) => updateSettings({ phoneQrDuringSong: e.target.checked })} /> Mostrar o QR code também durante as músicas (na faixa de baixo, fora do vídeo)</label>
 
         <h3>Aparência</h3>
         <div className="swatches">

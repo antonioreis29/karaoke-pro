@@ -298,7 +298,9 @@ function buildAudienceState(): AudienceState {
     waitTitle: s.settings.waitTitle,
     waitMessage: s.settings.waitMessage,
     showNext: s.settings.showNextSinger,
-    phoneQr: s.phone?.running && s.settings.phoneOnAudience ? s.phoneQr : null,
+    phoneQr: s.phone?.running ? s.phoneQr : null,
+    phoneOnWait: s.settings.phoneOnAudience,
+    phoneOnSong: s.settings.phoneQrDuringSong,
     phoneHost: s.phone?.running && s.phone.url ? new URL(s.phone.url).host : null,
     accent: s.settings.accent,
   };

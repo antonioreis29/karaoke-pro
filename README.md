@@ -46,6 +46,7 @@ Os dados (catálogo, fila, histórico e configurações) ficam em um banco SQLit
 10. **Pedidos pelo celular**: botão *Pedidos* no topo. Ao ligar, aparece um QR code (também mostrado na tela de espera do público). Os convidados, no mesmo Wi-Fi, buscam uma música da biblioteca, digitam o nome e pedem; o pedido chega para o operador aprovar (ou direto na fila, se a aprovação estiver desligada), e o celular mostra a posição na fila.
     - A página do celular só busca músicas e cria pedidos: não toca, não pausa e não vê a fila dos outros.
     - Exige o código do QR code; *Gerar novo código* invalida os QR codes antigos. Limites: um pedido a cada 15 s e até 3 pedidos na fila por celular.
+    - Durante as músicas, o QR code também aparece na faixa de baixo da tela do público, ao lado do nome da música e fora do vídeo (as regras do YouTube não permitem nada por cima do player). Dá para desligar em Configurações › Tela do público.
     - Fica desligado por padrão. Na primeira vez, o Windows pode perguntar se o Karaoke Pro pode usar a rede: permita em *Redes privadas*.
     - Os convidados também podem buscar no YouTube (opção na janela *Pedidos*, precisa da chave da API). A busca é feita pelo app, a chave não vai para o celular, e só gasta cota quando a pessoa toca em *Buscar no YouTube*: buscas repetidas vêm do cache. Limites: 1 busca nova a cada 20 s e 15 por dia por celular, 60 por dia somando todos.
 

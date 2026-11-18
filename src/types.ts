@@ -73,6 +73,8 @@ export interface Settings {
   themeVersion: number;
   mics: MicSettings;
   phoneOnAudience: boolean;
+  /** QR code de pedidos também na faixa de baixo durante as músicas (fora do vídeo). */
+  phoneQrDuringSong: boolean;
 }
 
 export interface MicChannel {
@@ -114,6 +116,7 @@ export const DEFAULT_SETTINGS: Settings = {
   themeVersion: 0,
   mics: DEFAULT_MICS,
   phoneOnAudience: true,
+  phoneQrDuringSong: true,
 };
 
 export interface ImportStatus {
@@ -182,6 +185,9 @@ export interface AudienceState {
   /** QR code dos pedidos pelo celular (imagem PNG em data URL) e o endereço curto mostrado abaixo. */
   phoneQr: string | null;
   phoneHost: string | null;
+  /** Onde o QR code aparece: tela de espera e/ou faixa de baixo durante as músicas. */
+  phoneOnWait: boolean;
+  phoneOnSong: boolean;
 }
 
 export type SyncMessage =
