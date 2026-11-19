@@ -6,6 +6,7 @@ import { Icon, Logo } from './components/icons';
 import { LibraryPanel } from './components/LibraryPanel';
 import { PlayerPanel } from './components/PlayerPanel';
 import { QueuePanel } from './components/QueuePanel';
+import { UpdateBadge } from './components/UpdateBadge';
 import { applyVolume, openAudience, seekBy, stop, toggle } from './player/engine';
 import { restoreMics } from './player/mics';
 import { usePhoneWatcher } from './phone';
@@ -166,6 +167,7 @@ export function App() {
                 : `Varrendo arquivos… ${imp.scanned}`}
             </span>
           )}
+          <UpdateBadge />
         </div>
         <button className={`btn ${phoneOn ? 'on' : ''}`} onClick={() => setState({ dialog: { type: 'phone' } })} title="Pedidos pelo celular: QR code e aprovação">
           <Icon name="phone" /> Pedidos

@@ -2,9 +2,11 @@
 // carregar, tocar, detectar o término e manter a tela do público sincronizada.
 import { api, cdgUrl, mediaUrl } from '../api';
 import { fail, getState, IDLE_PLAYBACK, orderedWaiting, setPlayback, setState, subscribe, toast, upsertSong } from '../store';
-import { VIDEO_FORMATS, type AudienceState, type PlayMode, type Song, type SyncMessage } from '../types';
+import { VIDEO_FORMATS, type AudienceState, type PlayMode, type ShownScore, type Song, type SyncMessage } from '../types';
 import { CdgPlayer, loadCdg } from './cdg';
 import { jingle } from './jingle';
+import { finishScore, startScore, stopScore } from './score';
+import { scorePhrase } from './score-core';
 import { warmYouTube, YT_ENDED, YT_PAUSED, YT_PLAYING, YtPlayer, ytErrorText } from './youtube';
 
 const video = document.createElement('video');
@@ -47,6 +49,9 @@ let countdownTimer: number | undefined;
 let introTimer: number | undefined;
 let loadToken = 0;
 let lastAlive = 0;
+/** Nota da última apresentação, exibida na tela de espera por alguns segundos. */
+let shownScore: ShownScore | null = null;
+const SCORE_SECONDS = 9;
 
 const channel = new BroadcastChannel('karaoke-pro');
 const post = (m: SyncMessage) => channel.postMessage(m);
@@ -71,6 +76,7 @@ export function applyVolume() {
 
 function teardown() {
   loadToken++;
+  stopScore();
   clearInterval(introTimer);
   jingle.stop();
   cancelAnimationFrame(raf);
@@ -113,12 +119,19 @@ async function handleError(message: string) {
 }
 
 async function finishCurrent(as: 'done' | 'waiting' | 'skipped') {
-  const { reqId, mode } = getState().playback;
+  const { reqId, mode, singer } = getState().playback;
   if (mode === 'idle') return;
   if (mode === 'intro' && as === 'done') as = 'waiting'; // interrompido na vinheta: ainda não cantou
+  const song = currentSong();
+  const result = as === 'done' && reqId != null ? finishScore() : null;
   teardown();
   setPlayback(IDLE_PLAYBACK);
-  if (reqId != null) setState({ requests: await api.patchRequest(reqId, { status: as }) });
+  if (result && song) {
+    const phrase = scorePhrase(result.score);
+    shownScore = { value: result.score, phrase, singer, title: song.title, tuning: result.tuning, presence: result.presence, expression: result.expression, until: Date.now() + SCORE_SECONDS * 1000 };
+    toast(`${singer}: ${result.score} pontos. ${phrase}`, 'ok');
+  }
+  if (reqId != null) setState({ requests: await api.patchRequest(reqId, { status: as, ...(result ? { score: result.score } : {}) }) });
 }
 
 async function onEnded() {
@@ -130,8 +143,11 @@ async function onEnded() {
   const s = getState();
   const next = orderedWaiting(s.requests, s.settings.fairRotation)[0];
   if (!s.settings.autoAdvance || !next) return;
-  if (s.settings.vinheta) return void playNext().catch(fail); // a vinheta já faz a transição
-  let left = Math.max(1, Math.round(s.settings.autoDelay));
+  const scoring = shownScore != null && shownScore.until > Date.now();
+  if (s.settings.vinheta && !scoring) return void playNext().catch(fail); // a vinheta já faz a transição
+  // com nota na tela, o próximo cantor espera a plateia ver a nota
+  let left = s.settings.vinheta ? SCORE_SECONDS : Math.max(1, Math.round(s.settings.autoDelay));
+  if (scoring) left = Math.max(left, SCORE_SECONDS);
   setPlayback({ countdown: left });
   countdownTimer = window.setInterval(() => {
     left--;
@@ -302,6 +318,7 @@ function buildAudienceState(): AudienceState {
     phoneOnWait: s.settings.phoneOnAudience,
     phoneOnSong: s.settings.phoneQrDuringSong,
     phoneHost: s.phone?.running && s.phone.url ? new URL(s.phone.url).host : null,
+    score: pb.mode === 'idle' && shownScore && shownScore.until > Date.now() ? shownScore : null,
     accent: s.settings.accent,
   };
 }
@@ -386,6 +403,7 @@ function begin(my: number) {
   }
   const duration = mode !== 'youtube' && Number.isFinite(video.duration) ? video.duration : song.duration ?? 0;
   setPlayback({ mode, status: 'loading', time: 0, duration, ready: false });
+  if (pb.reqId != null) void startScore();
   if (mode === 'youtube') {
     if (pb.ytHost === 'local') startYoutubeLocal(song, 0);
     return; // na tela do público, o novo estado faz a tela criar o player
@@ -399,6 +417,7 @@ function begin(my: number) {
 function startIntro(song: Song, reqId: number, singer: string) {
   cancelCountdown();
   teardown();
+  shownScore = null;
   const my = loadToken;
   const s = getState().settings;
   const total = Math.min(30, Math.max(3, s.vinhetaSeconds));
@@ -433,11 +452,13 @@ async function load(song: Song, reqId: number | null, singer: string) {
   const my = loadToken;
   const mode = modeOf(song);
   const ytOnAudience = mode === 'youtube' && getState().audienceOpen;
+  shownScore = null;
   setPlayback({
     ...IDLE_PLAYBACK, mode, status: 'loading', reqId, songId: song.id, singer,
     duration: song.duration ?? 0, ytHost: ytOnAudience ? 'audience' : 'local',
     localMedia: mode !== 'youtube',
   });
+  if (reqId != null) void startScore();
   if (mode === 'youtube') {
     if (!ytOnAudience) startYoutubeLocal(song, 0);
     return;

@@ -237,6 +237,7 @@ export function QueuePanel() {
                     <div className="t">{r.singer}{r.status === 'skipped' && <span className="badge">pulado</span>}</div>
                     <div className="a">{song ? `${song.title}${song.artist ? ` — ${song.artist}` : ''}` : 'Música removida'}</div>
                   </div>
+                  {r.score != null && <span className="score-chip" title="Nota da apresentação">{r.score}</span>}
                   {song && (
                     <button className="ghost" title="Colocar de novo na fila" onClick={() => set(api.addRequest(r.singer, r.song_id)).then(() => toast(`${r.singer} voltou para a fila`, 'ok'))}>
                       <Icon name="undo" size={15} />

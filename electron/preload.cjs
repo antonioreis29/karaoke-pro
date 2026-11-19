@@ -10,4 +10,12 @@ contextBridge.exposeInMainWorld('kpDesktop', {
   youtubeStatus: () => ipcRenderer.invoke('kp:youtube-status'),
   youtubeLogin: () => ipcRenderer.invoke('kp:youtube-login'),
   youtubeLogout: () => ipcRenderer.invoke('kp:youtube-logout'),
+  // atualização automática pelo GitHub Releases
+  updateStatus: () => ipcRenderer.invoke('kp:update-status'),
+  installUpdate: () => ipcRenderer.invoke('kp:update-install'),
+  onUpdate: (cb) => {
+    const fn = (_e, u) => cb(u);
+    ipcRenderer.on('kp:update', fn);
+    return () => ipcRenderer.removeListener('kp:update', fn);
+  },
 });

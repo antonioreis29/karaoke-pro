@@ -2,14 +2,19 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, screen, session, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import updaterPkg from 'electron-updater';
 import { startServer } from '../server/index.mjs';
+
+const { autoUpdater } = updaterPkg;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let server = null;
 let operator = null;
 
-// pasta de dados alternativa (usada em testes automatizados)
-if (process.env.KP_USER_DATA) app.setPath('userData', process.env.KP_USER_DATA);
+// Pasta de dados fixa (%APPDATA%karaoke-pro): a versão instalada e a de desenvolvimento usam o mesmo catálogo,
+// fila, configurações e login do YouTube. KP_USER_DATA troca a pasta nos testes automatizados.
+app.setPath('userData', process.env.KP_USER_DATA || path.join(app.getPath('appData'), 'karaoke-pro'));
+const ICON = path.join(__dirname, 'icon.png');
 if (!app.requestSingleInstanceLock()) app.quit();
 
 /** F11 alterna a tela cheia; Esc sai dela. */
@@ -35,6 +40,7 @@ function audienceWindowOptions() {
   const external = screen.getAllDisplays().find((d) => d.id !== primary.id);
   const base = {
     title: 'Karaoke Pro — Tela do público',
+    icon: ICON,
     backgroundColor: '#000000',
     autoHideMenuBar: true,
     webPreferences: {
@@ -60,6 +66,7 @@ function createOperatorWindow() {
     minWidth: 1100,
     minHeight: 640,
     title: 'Karaoke Pro',
+    icon: ICON,
     backgroundColor: '#0b0c10',
     autoHideMenuBar: true,
     webPreferences: {
@@ -135,6 +142,7 @@ ipcMain.handle('kp:youtube-login', (event) => {
       width: 520,
       height: 720,
       title: 'Entrar no YouTube',
+      icon: ICON,
       autoHideMenuBar: true,
       backgroundColor: '#ffffff',
       webPreferences: { contextIsolation: true, sandbox: true },
@@ -173,6 +181,44 @@ ipcMain.handle('kp:youtube-logout', async () => {
   return youtubeSignedIn();
 });
 
+// ---------------------------------------------------------------- atualização automática
+// Procura versões novas em GitHub Releases e baixa em segundo plano. A instalação nunca interrompe o show:
+// acontece quando o app é fechado, ou quando o operador clica em "Reiniciar e atualizar".
+let update = { state: 'idle', version: '', percent: 0, error: '' };
+function setUpdate(patch) {
+  update = { ...update, ...patch };
+  operator?.webContents.send('kp:update', update);
+}
+
+function startAutoUpdate() {
+  if (!app.isPackaged || process.env.KP_NO_UPDATE) return; // desenvolvimento e testes automatizados
+  // KP_UPDATE_URL só é usado nos testes automatizados (versões servidas por um servidor local)
+  if (process.env.KP_UPDATE_URL) autoUpdater.setFeedURL({ provider: 'generic', url: process.env.KP_UPDATE_URL });
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('update-available', (info) => setUpdate({ state: 'downloading', version: info.version, percent: 0, error: '' }));
+  autoUpdater.on('download-progress', (p) => setUpdate({ state: 'downloading', percent: Math.round(p.percent) }));
+  autoUpdater.on('update-downloaded', (info) => setUpdate({ state: 'ready', version: info.version, percent: 100 }));
+  autoUpdater.on('error', (e) => {
+    // sem internet ou GitHub fora do ar: tenta de novo na próxima verificação, sem incomodar o operador
+    if (update.state === 'downloading') setUpdate({ state: 'idle', error: e.message });
+  });
+  const check = () => {
+    if (update.state === 'ready') return;
+    autoUpdater.checkForUpdates().catch(() => undefined);
+  };
+  setTimeout(check, 15_000);
+  setInterval(check, 4 * 3600_000);
+}
+
+ipcMain.handle('kp:update-status', () => ({ ...update, current: app.getVersion() }));
+ipcMain.handle('kp:update-install', () => {
+  if (update.state !== 'ready') return false;
+  // silencioso (sem as telas do instalador) e abre o app de novo ao terminar
+  setImmediate(() => autoUpdater.quitAndInstall(true, true));
+  return true;
+});
+
 app.on('second-instance', () => {
   if (operator) {
     if (operator.isMinimized()) operator.restore();
@@ -203,6 +249,7 @@ app.whenReady().then(async () => {
       return false;
     });
     createOperatorWindow();
+    startAutoUpdate();
   } catch (e) {
     dialog.showErrorBox('Karaoke Pro', `Não foi possível iniciar: ${e.message}`);
     app.quit();

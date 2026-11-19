@@ -36,6 +36,8 @@ export interface SingerRequest {
   started_at: number | null;
   ended_at: number | null;
   source: 'operator' | 'phone';
+  /** Nota da apresentação (60 a 100), quando o microfone captou o cantor. */
+  score: number | null;
 }
 
 /** Situação dos pedidos pelo celular (servidor da rede local). */
@@ -75,6 +77,10 @@ export interface Settings {
   phoneOnAudience: boolean;
   /** QR code de pedidos também na faixa de baixo durante as músicas (fora do vídeo). */
   phoneQrDuringSong: boolean;
+  /** Nota do cantor no fim de cada música, calculada pelo microfone. */
+  score: boolean;
+  /** Entrada ouvida para a nota quando não há microfones ligados no mixer do app ('' = nenhuma). */
+  scoreMic: string;
 }
 
 export interface MicChannel {
@@ -117,6 +123,8 @@ export const DEFAULT_SETTINGS: Settings = {
   mics: DEFAULT_MICS,
   phoneOnAudience: true,
   phoneQrDuringSong: true,
+  score: true,
+  scoreMic: '',
 };
 
 export interface ImportStatus {
@@ -188,6 +196,20 @@ export interface AudienceState {
   /** Onde o QR code aparece: tela de espera e/ou faixa de baixo durante as músicas. */
   phoneOnWait: boolean;
   phoneOnSong: boolean;
+  /** Nota da apresentação que acabou de terminar, mostrada na tela de espera. */
+  score: ShownScore | null;
+}
+
+export interface ShownScore {
+  value: number;
+  phrase: string;
+  singer: string;
+  title: string;
+  tuning: number;
+  presence: number;
+  expression: number;
+  /** Até quando a nota fica na tela (relógio deste computador). */
+  until: number;
 }
 
 export type SyncMessage =
@@ -205,6 +227,25 @@ export const VIDEO_FORMATS = new Set(['mp4', 'm4v', 'webm', 'mkv', 'avi', 'mov']
 declare global {
   interface Window {
     __KP__?: { token: string; desktop: boolean };
-    kpDesktop?: { pickFolder(): Promise<string[]>; pickFiles(): Promise<string[]>; toggleFullscreen(): Promise<boolean>; setFullscreen(on: boolean): Promise<void>; youtubeStatus(): Promise<boolean>; youtubeLogin(): Promise<boolean>; youtubeLogout(): Promise<boolean> };
+    kpDesktop?: {
+      pickFolder(): Promise<string[]>;
+      pickFiles(): Promise<string[]>;
+      toggleFullscreen(): Promise<boolean>;
+      setFullscreen(on: boolean): Promise<void>;
+      youtubeStatus(): Promise<boolean>;
+      youtubeLogin(): Promise<boolean>;
+      youtubeLogout(): Promise<boolean>;
+      updateStatus(): Promise<UpdateInfo & { current: string }>;
+      installUpdate(): Promise<boolean>;
+      onUpdate(cb: (u: UpdateInfo) => void): () => void;
+    };
   }
+}
+
+/** Atualização automática (versão desktop instalada). */
+export interface UpdateInfo {
+  state: 'idle' | 'downloading' | 'ready';
+  version: string;
+  percent: number;
+  error: string;
 }

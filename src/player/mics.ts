@@ -209,6 +209,52 @@ export function setChannel(id: string, patch: Partial<MicChannel>) {
 
 export const setFx = (patch: Partial<Pick<MicSettings, 'volume' | 'echo' | 'bass' | 'treble'>>) => save(patch);
 
+// ---------------------------------------------------------------- som para a nota do cantor
+
+let tap: AnalyserNode | null = null;
+let solo: { id: string; stream: MediaStream; source: MediaStreamAudioSourceNode } | null = null;
+
+function closeSolo() {
+  if (!solo) return;
+  solo.stream.getTracks().forEach((t) => t.stop());
+  solo.source.disconnect();
+  solo = null;
+}
+
+/**
+ * Som que a nota do cantor analisa, antes do eco e do equalizador. Com microfones ligados no mixer, é a soma
+ * deles; sem mixer (microfones numa mesa de som externa), `deviceId` escolhe uma entrada só para análise,
+ * que não vai para o som.
+ */
+export async function scoreInput(deviceId: string, frameSize: number): Promise<AnalyserNode | null> {
+  const c = graph();
+  if (!tap) {
+    tap = c.createAnalyser();
+    tap.fftSize = frameSize;
+    bus.connect(tap);
+  }
+  await c.resume().catch(() => undefined);
+  if (channels.size) {
+    closeSolo();
+    return tap;
+  }
+  if (!deviceId || !navigator.mediaDevices?.getUserMedia) return null;
+  if (solo?.id !== deviceId) {
+    closeSolo();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+      const source = c.createMediaStreamSource(stream);
+      source.connect(tap);
+      solo = { id: deviceId, stream, source };
+    } catch {
+      return null;
+    }
+  }
+  return tap;
+}
+
 /** Ao abrir o app: se já havia microfones ligados, o mixer volta como estava. */
 export function restoreMics() {
   if (Object.values(cfg().channels).some((c) => c.on)) startMics().catch(() => undefined);

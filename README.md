@@ -1,34 +1,46 @@
-# Karaoke Pro (MVP)
+# Karaoke Pro
 
 Software de karaokê para DJs, bares e eventos: biblioteca local, repertório online pelo YouTube, fila de cantores e tela do público sincronizada. Funciona offline para arquivos locais.
 
-## Como executar
+## Instalação (Windows 10/11)
 
-Requisitos: Windows 10/11 e Node.js 22.13 ou superior (testado com Node 24).
+1. No GitHub, abra **Releases** (coluna da direita da página do repositório) e baixe `Karaoke-Pro-Setup-<versão>.exe`.
+2. Dê dois cliques no arquivo. A instalação é automática, não pede administrador e cria os atalhos **Karaoke Pro** na Área de Trabalho e no Menu Iniciar; o app abre no fim.
+3. Como o instalador não tem assinatura digital paga, o Windows pode mostrar "O Windows protegeu o computador". Clique em **Mais informações** › **Executar assim mesmo**.
+
+**Atualizações são automáticas**: o app procura versões novas em Releases ao abrir e a cada 4 horas e baixa em segundo plano. Quando terminar, aparece no topo *Versão X pronta · reiniciar e atualizar*; o app nunca reinicia sozinho no meio de um show. Se você não clicar, a versão nova é instalada quando o app for fechado.
+
+Para remover: Configurações do Windows › Aplicativos › Karaoke Pro. Os dados (catálogo, fila, histórico, configurações e login do YouTube) ficam em `%APPDATA%\karaoke-pro\data` e são mantidos ao atualizar ou desinstalar.
+
+O ZIP do código ("Code › Download ZIP") é para desenvolvimento e precisa do Node.js; para usar o app, prefira o instalador.
+
+## Desenvolvimento
+
+Requisitos: Node.js 22.13 ou superior (testado com Node 24). No PowerShell, use `npm.cmd` no lugar de `npm`.
 
 ```bash
 npm install
 ```
 
-Aplicativo desktop (Electron):
+| Comando | O que faz |
+| --- | --- |
+| `npm start` | Compila a interface e abre o app desktop |
+| `npm run web` | Modo web: abre no Chrome/Edge pelo endereço exibido no terminal (dados em `./data`) |
+| `npm run check` | Verificação de tipos, testes automáticos e compilação |
+| `npm run dist` | Gera o instalador em `release/` |
+| `npm run icon` | Gera os ícones a partir de `build/icon.svg` |
+
+### Publicar uma versão nova
+
+1. Aumente `version` no `package.json` (por exemplo, 0.2.0 → 0.2.1). Os apps instalados só se atualizam para um número maior.
+2. `npm run dist`.
+3. Crie a versão no GitHub com os três arquivos de `release/`: o instalador, o `.blockmap` e o `latest.yml` (o app lê o `latest.yml` para saber que há versão nova):
 
 ```bash
-npm start
+gh release create v0.2.1 release/Karaoke-Pro-Setup-0.2.1.exe release/Karaoke-Pro-Setup-0.2.1.exe.blockmap release/latest.yml
 ```
 
-Modo web (abre no Chrome/Edge pelo endereço exibido no terminal):
-
-```bash
-npm run web
-```
-
-Gerar instalador para Windows (não testado nesta etapa; baixa o electron-builder na primeira vez):
-
-```bash
-npm run dist
-```
-
-Os dados (catálogo, fila, histórico e configurações) ficam em um banco SQLite: em `%APPDATA%\karaoke-pro\data` no desktop e em `./data` no modo web.
+O repositório precisa ser público para os apps instalados baixarem as versões sem senha.
 
 ## Uso rápido
 
@@ -41,9 +53,13 @@ Os dados (catálogo, fila, histórico e configurações) ficam em um banco SQLit
 6. **Vinheta**: antes de cada cantor, a tela do público mostra o nome do cantor e a música com uma trilha de fundo gerada pelo próprio app (12 s por padrão). Enquanto ela toca, a música é carregada; quando a vinheta acaba, a música entra sem espera. Vídeos do YouTube não podem ser preparados escondidos (as regras do YouTube proíbem elementos na frente do player): durante a vinheta só o código do player e a conexão são adiantados, e o vídeo leva cerca de 1 s para começar. Se a música demorar mais que a vinheta, a vinheta continua até ela estar pronta. Duração, volume e liga/desliga ficam em Configurações; `Espaço` pula a vinheta.
 7. **Fila**: arraste um pedido para mudar a ordem. Arrastar com a *Rotação justa* ligada volta para a ordem manual.
 8. **Microfones**: aba *Microfones* abaixo do player. *Detectar microfones* lista as entradas do computador; cada uma tem liga/desliga, volume, medidor e mudo, além de volume geral, eco, graves e agudos. A voz sai pela mesma saída de som da música.
-9. **Tela cheia**: `F11` ou o botão no topo (aplicativo); `F`, `F11`, duplo clique ou o botão que aparece ao mover o mouse (tela do público); `Esc` sai.
+9. **Nota do cantor**: ao fim de cada música, a tela do público mostra a nota (60 a 100) por alguns segundos, com uma frase e três barras: *afinação* (as notas sustentadas caem em cima de uma nota musical e ficam firmes), *presença* (cantou ao longo da música toda) e *expressão* (variação de altura e intensidade, para não premiar fala monótona). A nota também fica no *Histórico*.
+    - O app ouve os microfones ligados no mixer do app. Se os microfones vão para uma mesa de som externa, escolha em Configurações › Nota do cantor uma entrada do computador que receba a voz (ela é só ouvida, não vai para o som).
+    - O app não conhece a melodia original, então a nota premia cantar afinado, não acertar as notas exatas da gravação. Funciona também com vídeos do YouTube, porque só o microfone é analisado.
+    - Sem voz suficiente (menos de 30 s de música ou 8 s de canto), não há nota. Com o avanço automático ligado, o próximo cantor espera a nota sair da tela.
+10. **Tela cheia**: `F11` ou o botão no topo (aplicativo); `F`, `F11`, duplo clique ou o botão que aparece ao mover o mouse (tela do público); `Esc` sai.
 
-10. **Pedidos pelo celular**: botão *Pedidos* no topo. Ao ligar, aparece um QR code (também mostrado na tela de espera do público). Os convidados, no mesmo Wi-Fi, buscam uma música da biblioteca, digitam o nome e pedem; o pedido chega para o operador aprovar (ou direto na fila, se a aprovação estiver desligada), e o celular mostra a posição na fila.
+11. **Pedidos pelo celular**: botão *Pedidos* no topo. Ao ligar, aparece um QR code (também mostrado na tela de espera do público). Os convidados, no mesmo Wi-Fi, buscam uma música da biblioteca, digitam o nome e pedem; o pedido chega para o operador aprovar (ou direto na fila, se a aprovação estiver desligada), e o celular mostra a posição na fila.
     - A página do celular só busca músicas e cria pedidos: não toca, não pausa e não vê a fila dos outros.
     - Exige o código do QR code; *Gerar novo código* invalida os QR codes antigos. Limites: um pedido a cada 15 s e até 3 pedidos na fila por celular.
     - Durante as músicas, o QR code também aparece na faixa de baixo da tela do público, ao lado do nome da música e fora do vídeo (as regras do YouTube não permitem nada por cima do player). Dá para desligar em Configurações › Tela do público.
@@ -101,7 +117,7 @@ A interface conversa com o serviço local por HTTP (com token por sessão) e com
 - Controle de tonalidade (mudança de tom sem alterar a velocidade).
 - Conversão de AVI/MKV com FFmpeg.
 - Integração com repositórios dedicados de karaokê sob licença aberta (hoje há apenas o filtro Creative Commons do YouTube).
-- Instalador do Windows e escolha manual do monitor da tela do público.
+- Escolha manual do monitor da tela do público.
 - Imagem de fundo personalizada na tela de espera.
 
 Importe apenas arquivos que você tem licença ou autorização para usar.

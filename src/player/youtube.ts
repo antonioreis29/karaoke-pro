@@ -243,7 +243,8 @@ export function parseVideoId(input: string): string | null {
 export function splitVideoTitle(title: string): { artist: string; title: string } {
   const clean = title
     .replace(/[\(\[][^\)\]]*(karaok[eê]|instrumental|playback|lyrics|letra|vers[aã]o|version|hd|4k)[^\)\]]*[\)\]]/gi, ' ')
-    .replace(/\b(karaok[eê]( version)?|com letra|with lyrics|instrumental|playback)\b/gi, ' ')
+    // limites de palavra que entendem acentos (o \b do JavaScript só conhece a-z: "Karaokê" escapava)
+    .replace(/(?<![\p{L}\d])(karaok[eê]( version)?|com letra|with lyrics|instrumental|playback)(?![\p{L}\d])/giu, ' ')
     .replace(/\s+/g, ' ')
     .replace(/^[\s\-–|]+|[\s\-–|]+$/g, '');
   const parts = clean.split(/\s+[-–|]\s+/).map((p) => p.trim()).filter(Boolean);

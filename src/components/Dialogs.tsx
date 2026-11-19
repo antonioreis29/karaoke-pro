@@ -6,6 +6,7 @@ import { setPhone } from '../phone';
 import { confirmDialog, fail, fmtTime, getState, setSongs, setState, toast, updateSettings, upsertSong, useApp } from '../store';
 import { fmtLabel } from './LibraryPanel';
 import { Icon } from './icons';
+import { ScoreSettings } from './ScoreSettings';
 import { YouTubeAccount } from './YouTubeAccount';
 
 const close = () => setState({ dialog: null });
@@ -304,6 +305,9 @@ function SettingsDialog() {
           <input type="range" min={0} max={1} step={0.05} value={s.vinhetaVolume} disabled={!s.vinheta} onChange={(e) => updateSettings({ vinhetaVolume: +e.target.value })} /> {Math.round(s.vinhetaVolume * 100)}%
         </label>
         <label className="check"><input type="checkbox" checked={s.fairRotation} onChange={(e) => updateSettings({ fairRotation: e.target.checked })} /> Rotação justa da fila</label>
+
+        <h3>Nota do cantor</h3>
+        <ScoreSettings />
 
         <h3>Tela do público</h3>
         <label>Título da tela de espera<input value={s.waitTitle} maxLength={60} onChange={(e) => updateSettings({ waitTitle: e.target.value })} /></label>

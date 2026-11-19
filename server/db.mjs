@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS requests (
   source TEXT NOT NULL DEFAULT 'operator',   -- operator | phone
   created_at INTEGER NOT NULL,
   started_at INTEGER,
-  ended_at INTEGER
+  ended_at INTEGER,
+  score INTEGER                              -- nota da apresentação (60 a 100), quando medida
 );
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
@@ -65,9 +66,9 @@ export function openDb(dataDir) {
   const songCols0 = db.prepare('PRAGMA table_info(songs)').all().map((c) => c.name);
   if (!songCols0.includes('blocked')) db.exec('ALTER TABLE songs ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0');
   if (!songCols0.includes('checked_at')) db.exec('ALTER TABLE songs ADD COLUMN checked_at INTEGER');
-  if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'source')) {
-    db.exec("ALTER TABLE requests ADD COLUMN source TEXT NOT NULL DEFAULT 'operator'");
-  }
+  const reqCols = db.prepare('PRAGMA table_info(requests)').all().map((c) => c.name);
+  if (!reqCols.includes('source')) db.exec("ALTER TABLE requests ADD COLUMN source TEXT NOT NULL DEFAULT 'operator'");
+  if (!reqCols.includes('score')) db.exec('ALTER TABLE requests ADD COLUMN score INTEGER');
   // Se o app foi fechado no meio de uma apresentação, ela volta para a fila.
   db.exec("UPDATE requests SET status='waiting', started_at=NULL WHERE status='singing'");
 
@@ -164,10 +165,12 @@ export function openDb(dataDir) {
         if (patch.status === 'waiting') {
           next.started_at = null;
           next.ended_at = null;
+          next.score = null;
         }
       }
-      q('UPDATE requests SET singer=?, song_id=?, status=?, started_at=?, ended_at=? WHERE id=?').run(
-        next.singer, next.song_id, next.status, next.started_at, next.ended_at, id
+      if (patch.score === null || (Number.isInteger(patch.score) && patch.score >= 0 && patch.score <= 100)) next.score = patch.score;
+      q('UPDATE requests SET singer=?, song_id=?, status=?, started_at=?, ended_at=?, score=? WHERE id=?').run(
+        next.singer, next.song_id, next.status, next.started_at, next.ended_at, next.score ?? null, id
       );
       return true;
     },

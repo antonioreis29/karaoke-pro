@@ -37,7 +37,7 @@ export const api = {
     call<Song>('POST', '/songs/youtube', v),
   oembed: (id: string) => call<{ title: string; channel: string; thumb: string }>('GET', `/youtube/oembed?id=${id}`),
   addRequest: (singer: string, songId: number) => call<SingerRequest[]>('POST', '/requests', { singer, songId }),
-  patchRequest: (id: number, patch: { singer?: string; songId?: number; status?: string }) =>
+  patchRequest: (id: number, patch: { singer?: string; songId?: number; status?: string; score?: number | null }) =>
     call<SingerRequest[]>('PATCH', `/requests/${id}`, patch),
   reorder: (ids: number[]) => call<SingerRequest[]>('POST', '/requests/reorder', { ids }),
   deleteRequest: (id: number) => call<SingerRequest[]>('DELETE', `/requests/${id}`),

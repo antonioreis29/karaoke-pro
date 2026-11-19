@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CdgPlayer, loadCdg } from '../player/cdg';
 import { warmYouTube, YT_PLAYING, YtPlayer } from '../player/youtube';
-import type { AudienceState, SyncMessage } from '../types';
+import type { AudienceState, ShownScore, SyncMessage } from '../types';
 import { Icon } from '../components/icons';
 
 /** Cor de texto legível sobre a cor de destaque. */
@@ -12,6 +12,49 @@ function onAccent(hex: string): string {
   if (!m) return '#111111';
   const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16) / 255);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? '#111111' : '#ffffff';
+}
+
+/** Nota da apresentação que acabou: o número sobe até a nota, com as três partes da avaliação. */
+function ScoreCard({ score, next }: { score: ShownScore; next: AudienceState | null }) {
+  const [shown, setShown] = useState(60);
+  useEffect(() => {
+    // temporizador (e não requestAnimationFrame): continua mesmo com a janela coberta por outra,
+    // e calcula pelo tempo decorrido, então sempre termina no valor da nota
+    const start = performance.now();
+    const step = () => {
+      const k = Math.min(1, (performance.now() - start) / 1800);
+      setShown(Math.round(60 + (score.value - 60) * (1 - (1 - k) ** 3)));
+      if (k >= 1) clearInterval(timer);
+    };
+    const timer = window.setInterval(step, 40);
+    return () => clearInterval(timer);
+  }, [score.value, score.until]);
+  const done = shown === score.value;
+  const parts: [string, number][] = [['Afinação', score.tuning], ['Presença', score.presence], ['Expressão', score.expression]];
+  return (
+    <div className="aud-score" key={score.until}>
+      <div className="burst b1" />
+      <div className="burst b2" />
+      <span className="vin-label">Nota de</span>
+      <strong className="score-singer">{score.singer}</strong>
+      <div className={`score-value ${done ? 'done' : ''}`}>{shown}</div>
+      <div className={`score-phrase ${done ? 'done' : ''}`}>{score.phrase}</div>
+      <div className="score-parts">
+        {parts.map(([label, v]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <i><b style={{ width: `${Math.round(v * 100)}%` }} /></i>
+          </div>
+        ))}
+      </div>
+      {next && (
+        <div className="score-next">
+          {next.countdown != null ? `Próximo em ${next.countdown}s: ` : 'A seguir: '}
+          <strong>{next.nextSinger}</strong>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const expectedTime = (s: AudienceState) => s.time + (s.status === 'playing' ? ((Date.now() - s.sentAt) / 1000) * s.rate : 0);
@@ -215,7 +258,9 @@ export function AudienceView() {
           </div>
         )}
 
-        {idle && (
+        {idle && s?.score && s.score.until > Date.now() && <ScoreCard score={s.score} next={s.showNext && s.nextSinger ? s : null} />}
+
+        {idle && !(s?.score && s.score.until > Date.now()) && (
           <div className={`aud-wait ${s?.phoneQr && s.phoneOnWait ? 'with-qr' : ''}`}>
             <div className="burst b1" />
             <div className="burst b2" />
