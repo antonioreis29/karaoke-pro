@@ -52,6 +52,12 @@ button:disabled { cursor: default; opacity: 0.4; }
 .topbar-status { flex: 1; display: flex; justify-content: center; }
 .pill { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 99px; background: var(--raised); color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
 .score-chip { flex: none; min-width: 34px; padding: 3px 8px; border-radius: 99px; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+.about { display: flex; flex-direction: column; gap: 8px; }
+.about-version { font-size: 14px; color: var(--dim); }
+.about-version b { color: var(--text); }
+.about-status { margin: 0; font-size: 13px; color: var(--dim); }
+.about-status.warn { color: var(--warn); }
+.about-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pill.update { border: 0; cursor: pointer; background: var(--accent); color: var(--on-accent); font-weight: 700; font-family: inherit; }
 .pill.update:hover { filter: brightness(1.08); }
 .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
@@ -271,10 +277,11 @@ input[type='range']:disabled { opacity: 0.4; }
 .form { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; }
 .form > * { flex-shrink: 0; }
 .form label:not(.check):not(.inline) { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--dim); }
-.form input:not([type='checkbox']):not([type='color']):not([type='range']), .form textarea { height: 36px; padding: 0 12px; border-radius: 10px; background: var(--bg); border: 1.5px solid var(--field-edge); color: var(--text); user-select: text; font-weight: 400; }
+/* o campo dentro de uma caixa de busca usa a borda da caixa, não a própria */
+.form input:not([type='checkbox']):not([type='color']):not([type='range']):not(.search input), .form textarea { height: 36px; padding: 0 12px; border-radius: 10px; background: var(--bg); border: 1.5px solid var(--field-edge); color: var(--text); user-select: text; font-weight: 400; }
 .form select { height: 32px; border-radius: 10px; background: var(--bg); border: 1.5px solid var(--field-edge); color: var(--text); padding: 0 8px; }
 .form textarea { height: auto; padding: 8px 12px; resize: vertical; font-family: Consolas, monospace; font-size: 12px; }
-.form input:focus, .form textarea:focus { outline: 0; border-color: var(--accent); }
+.form input:not(.search input):focus, .form textarea:focus { outline: 0; border-color: var(--accent); }
 .form .search input { height: auto; border: 0; padding: 0; background: none; }
 .form footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 .form h3 { margin: 12px 0 0; font-family: var(--display); font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); }

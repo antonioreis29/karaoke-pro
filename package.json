@@ -1,6 +1,6 @@
 {
   "name": "karaoke-pro",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Karaoke Pro — software de karaokê para DJs, bares e eventos",
   "private": true,
   "type": "module",

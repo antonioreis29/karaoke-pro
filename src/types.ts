@@ -235,7 +235,8 @@ declare global {
       youtubeStatus(): Promise<boolean>;
       youtubeLogin(): Promise<boolean>;
       youtubeLogout(): Promise<boolean>;
-      updateStatus(): Promise<UpdateInfo & { current: string }>;
+      updateStatus(): Promise<UpdateInfo>;
+      checkUpdate(): Promise<UpdateInfo>;
       installUpdate(): Promise<boolean>;
       onUpdate(cb: (u: UpdateInfo) => void): () => void;
     };
@@ -244,8 +245,16 @@ declare global {
 
 /** Atualização automática (versão desktop instalada). */
 export interface UpdateInfo {
-  state: 'idle' | 'downloading' | 'ready';
+  state: 'idle' | 'checking' | 'downloading' | 'ready';
+  /** Versão nova encontrada (vazio se nenhuma). */
   version: string;
   percent: number;
+  /** Erro da última consulta (sem internet, GitHub fora do ar). */
   error: string;
+  /** Atualização automática ligada (só no app instalado). */
+  enabled: boolean;
+  upToDate: boolean;
+  checkedAt: number;
+  /** Versão em uso. */
+  current: string;
 }

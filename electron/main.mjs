@@ -184,10 +184,17 @@ ipcMain.handle('kp:youtube-logout', async () => {
 // ---------------------------------------------------------------- atualização automática
 // Procura versões novas em GitHub Releases e baixa em segundo plano. A instalação nunca interrompe o show:
 // acontece quando o app é fechado, ou quando o operador clica em "Reiniciar e atualizar".
-let update = { state: 'idle', version: '', percent: 0, error: '' };
+// enabled: atualização ligada (só no app instalado); upToDate/checkedAt: resultado da última consulta ao GitHub
+let update = { state: 'idle', version: '', percent: 0, error: '', enabled: false, upToDate: false, checkedAt: 0 };
+const updatePayload = () => ({ ...update, current: app.getVersion() });
 function setUpdate(patch) {
   update = { ...update, ...patch };
-  operator?.webContents.send('kp:update', update);
+  operator?.webContents.send('kp:update', updatePayload());
+}
+
+function checkForUpdates() {
+  if (!update.enabled || update.state === 'ready' || update.state === 'downloading' || update.state === 'checking') return;
+  autoUpdater.checkForUpdates().catch(() => undefined); // o resultado chega pelos eventos abaixo
 }
 
 function startAutoUpdate() {
@@ -196,22 +203,27 @@ function startAutoUpdate() {
   if (process.env.KP_UPDATE_URL) autoUpdater.setFeedURL({ provider: 'generic', url: process.env.KP_UPDATE_URL });
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on('update-available', (info) => setUpdate({ state: 'downloading', version: info.version, percent: 0, error: '' }));
+  update.enabled = true;
+  autoUpdater.on('checking-for-update', () => setUpdate({ state: 'checking', error: '' }));
+  autoUpdater.on('update-not-available', () => setUpdate({ state: 'idle', upToDate: true, checkedAt: Date.now(), error: '' }));
+  autoUpdater.on('update-available', (info) =>
+    setUpdate({ state: 'downloading', version: info.version, percent: 0, error: '', upToDate: false, checkedAt: Date.now() })
+  );
   autoUpdater.on('download-progress', (p) => setUpdate({ state: 'downloading', percent: Math.round(p.percent) }));
   autoUpdater.on('update-downloaded', (info) => setUpdate({ state: 'ready', version: info.version, percent: 100 }));
   autoUpdater.on('error', (e) => {
-    // sem internet ou GitHub fora do ar: tenta de novo na próxima verificação, sem incomodar o operador
-    if (update.state === 'downloading') setUpdate({ state: 'idle', error: e.message });
+    // sem internet ou GitHub fora do ar: tenta de novo na próxima verificação; o aviso só aparece na tela "Sobre"
+    if (update.state !== 'ready') setUpdate({ state: 'idle', error: e.message || 'erro desconhecido', checkedAt: Date.now() });
   });
-  const check = () => {
-    if (update.state === 'ready') return;
-    autoUpdater.checkForUpdates().catch(() => undefined);
-  };
-  setTimeout(check, 15_000);
-  setInterval(check, 4 * 3600_000);
+  setTimeout(checkForUpdates, 15_000);
+  setInterval(checkForUpdates, 4 * 3600_000);
 }
 
-ipcMain.handle('kp:update-status', () => ({ ...update, current: app.getVersion() }));
+ipcMain.handle('kp:update-status', () => updatePayload());
+ipcMain.handle('kp:update-check', () => {
+  checkForUpdates();
+  return updatePayload();
+});
 ipcMain.handle('kp:update-install', () => {
   if (update.state !== 'ready') return false;
   // silencioso (sem as telas do instalador) e abre o app de novo ao terminar

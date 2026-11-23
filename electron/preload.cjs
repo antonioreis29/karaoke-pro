@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('kpDesktop', {
   youtubeLogout: () => ipcRenderer.invoke('kp:youtube-logout'),
   // atualização automática pelo GitHub Releases
   updateStatus: () => ipcRenderer.invoke('kp:update-status'),
+  checkUpdate: () => ipcRenderer.invoke('kp:update-check'),
   installUpdate: () => ipcRenderer.invoke('kp:update-install'),
   onUpdate: (cb) => {
     const fn = (_e, u) => cb(u);

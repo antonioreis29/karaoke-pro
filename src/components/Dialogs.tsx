@@ -7,6 +7,7 @@ import { confirmDialog, fail, fmtTime, getState, setSongs, setState, toast, upda
 import { fmtLabel } from './LibraryPanel';
 import { Icon } from './icons';
 import { ScoreSettings } from './ScoreSettings';
+import { AboutSection } from './UpdateBadge';
 import { YouTubeAccount } from './YouTubeAccount';
 
 const close = () => setState({ dialog: null });
@@ -331,6 +332,9 @@ function SettingsDialog() {
           <span><kbd>←</kbd><kbd>→</kbd> Voltar / avançar 5 s</span><span><kbd>↑</kbd><kbd>↓</kbd> Volume geral</span>
           <span><kbd>P</kbd> Tela do público</span><span><kbd>F11</kbd> Tela cheia</span><span><kbd>Ctrl</kbd><kbd>F</kbd> Buscar</span>
         </div>
+
+        <h3>Sobre</h3>
+        <AboutSection />
         <footer><button className="btn primary" onClick={close}>Concluir</button></footer>
       </div>
     </Modal>
