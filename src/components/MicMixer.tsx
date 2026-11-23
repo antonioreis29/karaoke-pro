@@ -70,7 +70,7 @@ export function MicMixer() {
                   {fail && c.on && <span className="badge danger">{fail}</span>}
                 </div>
                 <div className="meter" aria-hidden="true">
-                  <i style={{ width: `${Math.min(100, Math.sqrt(level) * 100)}%` }} className={level > 0.9 ? 'clip' : ''} />
+                  <i style={{ width: '100%', transform: `scaleX(${Math.min(1, Math.sqrt(level))})` }} className={level > 0.9 ? 'clip' : ''} />
                 </div>
               </div>
               <input className="mic-gain" type="range" min={0} max={1.5} step={0.01} value={c.gain} disabled={!c.on} onChange={(e) => setChannel(d.id, { gain: +e.target.value })} title="Volume deste microfone" />

@@ -18,6 +18,8 @@ function onAccent(hex: string): string {
 function ScoreCard({ score, next }: { score: ShownScore; next: AudienceState | null }) {
   const [shown, setShown] = useState(60);
   useEffect(() => {
+    // "reduzir movimento" do Windows: a nota aparece pronta, sem contagem
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return void setShown(score.value);
     // temporizador (e não requestAnimationFrame): continua mesmo com a janela coberta por outra,
     // e calcula pelo tempo decorrido, então sempre termina no valor da nota
     const start = performance.now();
@@ -298,7 +300,7 @@ export function AudienceView() {
               {s.artist && <em>{s.artist}</em>}
             </div>
             <div className="eq big dots"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
-            <div className="vin-progress"><i style={{ width: `${introPct}%` }} /></div>
+            <div className="vin-progress"><i style={{ transform: `scaleX(${introPct / 100})` }} /></div>
           </div>
         )}
       </div>

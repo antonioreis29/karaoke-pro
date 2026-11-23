@@ -7,7 +7,8 @@
   --line: #31312d;
   --text: #f4f0e1;
   --dim: #aca792;
-  --faint: #716d5f;
+  --faint: #99947f; /* texto secundário: pelo menos 4,5:1 sobre painéis e campos */
+  --field-edge: #706c5c; /* borda de campos: pelo menos 3:1 sobre o fundo */
   --accent: #d9e88a;
   --on-accent: #111111;
   --paper: #f4f0e1;
@@ -101,11 +102,11 @@ button:disabled { cursor: default; opacity: 0.4; }
 .tabs button.on i { background: var(--ink); color: var(--paper); }
 
 .panel-tools { flex: none; padding: 8px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line); }
-.search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 6px 0 12px; border-radius: 99px; background: var(--bg); border: 1.5px solid var(--line); color: var(--faint); }
+.search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 6px 0 12px; border-radius: 99px; background: var(--bg); border: 1.5px solid var(--field-edge); color: var(--faint); }
 .search:focus-within { border-color: var(--accent); }
 .search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--text); user-select: text; }
 .filters { display: flex; gap: 6px; align-items: center; }
-.filters select { flex: 1; min-width: 0; height: 27px; border-radius: 99px; background: var(--raised); border: 1px solid var(--line); color: var(--dim); font-size: 12px; padding: 0 6px; }
+.filters select { flex: 1; min-width: 0; height: 27px; border-radius: 99px; background: var(--raised); border: 1px solid var(--field-edge); color: var(--dim); font-size: 12px; padding: 0 6px; }
 .notice { padding: 12px; border-radius: 10px; background: var(--raised); border: 1px solid var(--line); }
 .notice p { margin: 4px 0 8px; color: var(--dim); font-size: 12px; }
 
@@ -222,7 +223,7 @@ input[type='range']:disabled { opacity: 0.4; }
 .mic:not(.live) .mic-name { color: var(--dim); }
 .mic-val { text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
 .meter { height: 6px; margin-top: 4px; border-radius: 3px; background: #33332f; overflow: hidden; }
-.meter i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.07s linear; }
+.meter i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transform-origin: left; transition: transform 0.07s linear; }
 .meter i.clip { background: var(--danger); }
 .switch { width: 34px; height: 20px; border-radius: 99px; background: #3a3a35; position: relative; transition: background 0.15s; }
 .switch i { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--dim); transition: transform 0.15s, background 0.15s; }
@@ -270,7 +271,8 @@ input[type='range']:disabled { opacity: 0.4; }
 .form { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; }
 .form > * { flex-shrink: 0; }
 .form label:not(.check):not(.inline) { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--dim); }
-.form input:not([type='checkbox']):not([type='color']):not([type='range']), .form textarea { height: 36px; padding: 0 12px; border-radius: 10px; background: var(--bg); border: 1.5px solid var(--line); color: var(--text); user-select: text; font-weight: 400; }
+.form input:not([type='checkbox']):not([type='color']):not([type='range']), .form textarea { height: 36px; padding: 0 12px; border-radius: 10px; background: var(--bg); border: 1.5px solid var(--field-edge); color: var(--text); user-select: text; font-weight: 400; }
+.form select { height: 32px; border-radius: 10px; background: var(--bg); border: 1.5px solid var(--field-edge); color: var(--text); padding: 0 8px; }
 .form textarea { height: auto; padding: 8px 12px; resize: vertical; font-family: Consolas, monospace; font-size: 12px; }
 .form input:focus, .form textarea:focus { outline: 0; border-color: var(--accent); }
 .form .search input { height: auto; border: 0; padding: 0; background: none; }
@@ -350,7 +352,7 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin-right: 4p
 .vin-song em { font-style: normal; font-size: clamp(12px, 1.8vw, 32px); font-weight: 600; opacity: 0.85; }
 .aud-vinheta .eq { margin-top: 5vh; color: var(--on-accent); }
 .vin-progress { position: absolute !important; left: 0; right: 0; bottom: 0; height: 1.4vh; background: color-mix(in srgb, var(--on-accent) 18%, transparent); }
-.vin-progress i { display: block; height: 100%; background: var(--on-accent); transition: width 0.3s linear; }
+.vin-progress i { display: block; height: 100%; background: var(--on-accent); transform-origin: left; transition: transform 0.3s linear; }
 
 /* nota do cantor: fundo escuro da tela de espera, número grande na cor de destaque */
 .aud-score { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 5vh 6vw; overflow: hidden; background: var(--dots) 0 0 / 14px 14px, #131312; color: var(--paper); animation: vin-in 0.5s cubic-bezier(0.2, 0.9, 0.2, 1); }
@@ -396,7 +398,7 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin-right: 4p
 .phone-qr.off { background: var(--raised); color: var(--faint); font-size: 12px; text-align: center; padding: 20px; }
 .phone-url { font-family: Consolas, monospace; font-size: 12px; color: var(--text); word-break: break-all; user-select: text; }
 .phone-side { display: flex; flex-direction: column; gap: 10px; }
-.phone-side select { height: 34px; border-radius: 10px; background: var(--bg); border: 1.5px solid var(--line); color: var(--text); padding: 0 8px; }
+.phone-side select { height: 34px; border-radius: 10px; background: var(--bg); border: 1.5px solid var(--field-edge); color: var(--text); padding: 0 8px; }
 .switch-row { display: flex; align-items: center; gap: 10px; font-weight: 600; }
 /* a faixa de mensagem ocupa o rodapé: o conteúdo é centralizado no espaço acima dela */
 .aud-wait { padding-bottom: calc(5vh + clamp(11px, 1.5vw, 28px) * 1.4 + 4.4vh); }
@@ -426,3 +428,9 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin-right: 4p
 .yt-account { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .yt-account .hint { flex: 1 1 260px; }
 .yt-account.compact { margin-top: 8px; }
+
+/* "reduzir movimento" do Windows: estrelas paradas, entradas sem salto, medidores sem transição */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .burst { animation: none !important; }
+}
